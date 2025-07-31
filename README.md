@@ -12,16 +12,22 @@ A Home Assistant custom integration for controlling PowerShades motorized blinds
 
 ## Installation
 
-### HACS (Recommended)
+### HACS Installation (For Unpublished Repositories)
 
-1. Add this repository to HACS as a custom repository
-2. Search for "PowerShades" in HACS
-3. Click "Download"
-4. Restart Home Assistant
+Since this integration is not yet published to HACS, you'll need to add it as a custom repository:
+
+1. In HACS, go to **Settings** → **Repositories**
+2. Click the **+** button to add a new repository
+3. Enter the repository URL: `https://github.com/yourusername/powershades-homeassistant`
+4. Select **Integration** as the category
+5. Click **Add**
+6. Once added, search for "PowerShades" in HACS
+7. Click **Download**
+8. Restart Home Assistant
 
 ### Manual Installation
 
-1. Download this repository
+1. Download this repository (clone or download ZIP)
 2. Copy the `custom_components/powershades` folder to your Home Assistant `config/custom_components/` directory
 3. Restart Home Assistant
 
