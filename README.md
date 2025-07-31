@@ -55,26 +55,19 @@ Once configured, your PowerShades will appear as covers in Home Assistant. You c
 Additional buttons provide quick access to common operations:
 
 - **Preset Positions**: Quick access to favorite positions
-- **Tilt Controls**: Adjust blind tilt angles
 - **Group Operations**: Control multiple blinds simultaneously
 
 ## Requirements
 
 - Home Assistant 2023.8.0 or newer
 - PowerShades controller with UDP communication enabled
-- Network access to the PowerShades controller
 
 ## Supported Devices
 
-This integration supports PowerShades controllers that communicate via UDP protocol. Refer to the [PowerShades UDP Command Set](reference/Powershades%20UDP%20Command%20Set%20-%20V011.pdf) for detailed protocol information.
+This integration supports PowerShades controllers that communicate via UDP protocol.
 
 ## Troubleshooting
 
-### Common Issues
-
-1. **Connection Failed**: Verify the IP address and port are correct
-2. **Blinds Not Responding**: Check network connectivity to the controller
-3. **Position Inaccuracy**: Calibrate blinds through the PowerShades app first
 
 ### Debug Logging
 
@@ -88,23 +81,6 @@ logger:
 ```
 
 ## Development
-
-### Project Structure
-
-```
-custom_components/powershades/
-├── __init__.py          # Main integration setup
-├── manifest.json        # Integration metadata
-├── const.py            # Constants and configuration
-├── config_flow.py      # Configuration flow
-├── device.py           # Device communication
-├── cover.py            # Cover platform
-├── button.py           # Button platform
-├── sensor.py           # Sensor platform
-├── services.py         # Custom services
-├── udp.py              # UDP communication
-└── services.yaml       # Service definitions
-```
 
 ### Contributing
 
@@ -122,7 +98,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - PowerShades for their UDP protocol documentation
 - Home Assistant community for the integration framework
-- Contributors and testers
 
 ## Support
 
