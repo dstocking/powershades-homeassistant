@@ -12,9 +12,9 @@ A Home Assistant custom integration for controlling PowerShades motorized blinds
 
 ## Installation
 
-### HACS Installation (For Unpublished Repositories)
+### HACS Installation
 
-Since this integration is not yet published to HACS, you'll need to add it as a custom repository:
+This integration can be installed via HACS as a custom repository:
 
 1. In HACS, go to **Settings** → **Repositories**
 2. Click the **+** button to add a new repository
@@ -25,7 +25,7 @@ Since this integration is not yet published to HACS, you'll need to add it as a 
 7. Click **Download**
 8. Restart Home Assistant
 
-**Note**: This integration uses semantic versioning. The current version is `v0.1.0`. If you encounter version-related errors in HACS, ensure the repository has been properly tagged with a release version.
+**Note**: This integration uses semantic versioning with proper GitHub releases. The current version is `v0.1.0`.
 
 ### Manual Installation
 
