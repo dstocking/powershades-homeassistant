@@ -1,0 +1,77 @@
+powershades_toggle_shade:
+  name: Toggle Shade
+  description: Toggle the shade between open and closed positions
+  fields:
+    entity_id:
+      name: Entity
+      description: The PowerShades cover entity to toggle
+      example: "cover.powershade_10_9_31_66"
+      selector:
+        entity:
+          domain: cover
+          integration: powershades
+
+powershades_set_upper_limit:
+  name: Set Upper Limit
+  description: Set the upper limit (fully open position) for a PowerShades device
+  fields:
+    entity_id:
+      name: Entity
+      description: The PowerShades cover entity to set the limit for
+      example: "cover.powershade_10_9_31_66"
+      selector:
+        entity:
+          domain: cover
+          integration: powershades
+
+powershades_set_lower_limit:
+  name: Set Lower Limit
+  description: Set the lower limit (fully closed position) for a PowerShades device
+  fields:
+    entity_id:
+      name: Entity
+      description: The PowerShades cover entity to set the limit for
+      example: "cover.powershade_10_9_31_66"
+      selector:
+        entity:
+          domain: cover
+          integration: powershades
+
+powershades_clear_limits:
+  name: Clear Limits
+  description: Clear both upper and lower limits for a PowerShades device
+  fields:
+    entity_id:
+      name: Entity
+      description: The PowerShades cover entity to clear limits for
+      example: "cover.powershade_10_9_31_66"
+      selector:
+        entity:
+          domain: cover
+          integration: powershades
+
+powershades_step_up:
+  name: Step Up
+  description: Move the motor up one step (for trimming limits)
+  fields:
+    entity_id:
+      name: Entity
+      description: The PowerShades cover entity to step up
+      example: "cover.powershade_10_9_31_66"
+      selector:
+        entity:
+          domain: cover
+          integration: powershades
+
+powershades_step_down:
+  name: Step Down
+  description: Move the motor down one step (for trimming limits)
+  fields:
+    entity_id:
+      name: Entity
+      description: The PowerShades cover entity to step down
+      example: "cover.powershade_10_9_31_66"
+      selector:
+        entity:
+          domain: cover
+          integration: powershades 
