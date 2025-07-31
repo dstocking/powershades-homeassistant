@@ -18,7 +18,7 @@ Since this integration is not yet published to HACS, you'll need to add it as a 
 
 1. In HACS, go to **Settings** → **Repositories**
 2. Click the **+** button to add a new repository
-3. Enter the repository URL: `https://github.com/yourusername/powershades-homeassistant`
+3. Enter the repository URL: `https://github.com/dstocking/powershades-homeassistant`
 4. Select **Integration** as the category
 5. Click **Add**
 6. Once added, search for "PowerShades" in HACS
