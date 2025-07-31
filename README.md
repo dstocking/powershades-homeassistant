@@ -25,6 +25,8 @@ Since this integration is not yet published to HACS, you'll need to add it as a 
 7. Click **Download**
 8. Restart Home Assistant
 
+**Note**: This integration uses semantic versioning. The current version is `v0.1.0`. If you encounter version-related errors in HACS, ensure the repository has been properly tagged with a release version.
+
 ### Manual Installation
 
 1. Download this repository (clone or download ZIP)
@@ -68,6 +70,13 @@ This integration supports PowerShades controllers that communicate via UDP proto
 
 ## Troubleshooting
 
+### HACS Installation Issues
+
+If you encounter errors when installing via HACS:
+
+1. **Version Error**: Ensure the repository has a proper release tag (currently `v0.1.0`)
+2. **Repository Not Found**: Verify the repository URL is correct and the repository is public
+3. **Download Failed**: Try refreshing HACS and clearing the cache
 
 ### Debug Logging
 
