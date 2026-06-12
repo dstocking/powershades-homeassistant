@@ -12,12 +12,17 @@
         {
             "hostname": "ps-*",
             "macaddress": "D83AF5*"
+        },
+        {
+            "registered_devices": true
         }
     ],
     "documentation": "https://github.com/dstocking/powershades-homeassistant",
     "integration_type": "device",
     "iot_class": "local_polling",
     "issue_tracker": "https://github.com/dstocking/powershades-homeassistant/issues",
-    "requirements": [],
-    "version": "0.2.0"
+    "requirements": [
+        "getmac==0.9.5"
+    ],
+    "version": "0.3.0"
 }

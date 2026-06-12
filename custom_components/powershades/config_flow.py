@@ -8,6 +8,7 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.helpers.device_registry import format_mac
 from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
 
 from .const import DOMAIN
@@ -33,6 +34,7 @@ class PowerShadesConfigFlow(ConfigFlow, domain=DOMAIN):
         self._discovered_ip: str | None = None
         self._discovered_serial: int | None = None
         self._discovered_name: str | None = None
+        self._discovered_mac: str | None = None
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -105,6 +107,7 @@ class PowerShadesConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         """Handle a device found by DHCP discovery."""
         ip = discovery_info.ip
+        self._discovered_mac = format_mac(discovery_info.macaddress)
         # The DHCP matcher is a heuristic (MAC prefix + hostname); verify
         # the device actually speaks the PowerShades protocol.
         try:
@@ -123,7 +126,10 @@ class PowerShadesConfigFlow(ConfigFlow, domain=DOMAIN):
         self._async_abort_entries_match({"ip": ip})
 
         await self.async_set_unique_id(str(serial))
-        self._abort_if_unique_id_configured(updates={"ip": ip})
+        updates = {"ip": ip}
+        if self._discovered_mac:
+            updates["mac"] = self._discovered_mac
+        self._abort_if_unique_id_configured(updates=updates)
 
         self._discovered_ip = ip
         self._discovered_serial = serial
@@ -153,6 +159,7 @@ class PowerShadesConfigFlow(ConfigFlow, domain=DOMAIN):
                     "ip": ip,
                     "serial": self._discovered_serial,
                     "name": name,
+                    "mac": self._discovered_mac,
                 },
             )
 
