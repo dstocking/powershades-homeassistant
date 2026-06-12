@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass, replace
 from datetime import timedelta
 
@@ -50,10 +51,11 @@ _LOGGER = logging.getLogger(__name__)
 # Within this distance of the target the shade counts as arrived
 POSITION_TOLERANCE = 2
 
-# How many consecutive unchanged status updates before a shade that
-# isn't at its target is considered stopped (e.g. by an external
-# controller or a physical obstruction)
-STUCK_THRESHOLD = 2
+# How long the reported position can stay unchanged while heading to a
+# target before the shade is considered stopped (e.g. by an external
+# controller or a physical obstruction). Generous enough to absorb the
+# motor ramp-up time and the gap before the first status push.
+STUCK_TIMEOUT = 5
 
 PowerShadesConfigEntry = ConfigEntry["PowerShadesCoordinator"]
 
@@ -89,7 +91,7 @@ class PowerShadesCoordinator(DataUpdateCoordinator[PowerShadesData]):
         self.model: int | None = entry.data.get("model")
         self._target_position: int | None = None
         self._last_position: int | None = None
-        self._unchanged_count = 0
+        self._last_change_time: float | None = None
         super().__init__(
             hass,
             _LOGGER,
@@ -126,21 +128,23 @@ class PowerShadesCoordinator(DataUpdateCoordinator[PowerShadesData]):
         )
 
     def _data_from_status(self, status: StatusReply) -> PowerShadesData:
+        now = time.monotonic()
         if self._target_position is not None and status.position is not None:
             if abs(status.position - self._target_position) <= POSITION_TOLERANCE:
                 self._target_position = None
-                self._unchanged_count = 0
-            elif status.position == self._last_position:
-                self._unchanged_count += 1
-                if self._unchanged_count >= STUCK_THRESHOLD:
-                    # Position hasn't moved even though we think the shade
-                    # is heading to a target - an external controller or a
-                    # physical obstruction stopped it. Stop reporting
-                    # opening/closing.
-                    self._target_position = None
-                    self._unchanged_count = 0
-            else:
-                self._unchanged_count = 0
+                self._last_change_time = None
+            elif status.position != self._last_position:
+                self._last_change_time = now
+            elif (
+                self._last_change_time is not None
+                and now - self._last_change_time >= STUCK_TIMEOUT
+            ):
+                # Position hasn't moved for a while even though we think
+                # the shade is heading to a target - an external
+                # controller or a physical obstruction stopped it. Stop
+                # reporting opening/closing.
+                self._target_position = None
+                self._last_change_time = None
         self._last_position = status.position
         return PowerShadesData(
             position=status.position,
@@ -173,6 +177,7 @@ class PowerShadesCoordinator(DataUpdateCoordinator[PowerShadesData]):
     def _set_target(self, position: int | None) -> None:
         """Update the movement target and notify entities immediately."""
         self._target_position = position
+        self._last_change_time = time.monotonic() if position is not None else None
         if self.data is not None:
             self.async_set_updated_data(replace(self.data, target_position=position))
 
