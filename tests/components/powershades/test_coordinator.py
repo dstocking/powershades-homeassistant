@@ -68,7 +68,7 @@ def test_target_reached_clears_target(coordinator) -> None:
 
 def test_unchanged_position_within_timeout_keeps_target(coordinator) -> None:
     """A position that hasn't changed yet is not immediately marked stuck."""
-    times = [100.0, 100.0, 104.0]
+    times = [100.0, 100.0, 114.0]
     with patch.object(coordinator_module.time, "monotonic", side_effect=times):
         coordinator._set_target(0)  # t=100, last_change=100
         data = coordinator._data_from_status(
@@ -78,13 +78,13 @@ def test_unchanged_position_within_timeout_keeps_target(coordinator) -> None:
 
         data = coordinator._data_from_status(
             StatusReply(position=50, battery_mv=3700)
-        )  # t=104, unchanged for 4s (< STUCK_TIMEOUT)
+        )  # t=114, unchanged for 14s (< STUCK_TIMEOUT)
         assert data.target_position == 0
 
 
 def test_stuck_position_clears_target_after_timeout(coordinator) -> None:
     """A position unchanged for STUCK_TIMEOUT seconds clears the target."""
-    times = [100.0, 100.0, 106.0]
+    times = [100.0, 100.0, 116.0]
     with patch.object(coordinator_module.time, "monotonic", side_effect=times):
         coordinator._set_target(0)  # t=100, last_change=100
         coordinator._data_from_status(
@@ -93,7 +93,7 @@ def test_stuck_position_clears_target_after_timeout(coordinator) -> None:
 
         data = coordinator._data_from_status(
             StatusReply(position=50, battery_mv=3700)
-        )  # t=106, unchanged for 6s (>= STUCK_TIMEOUT)
+        )  # t=116, unchanged for 16s (>= STUCK_TIMEOUT)
         assert data.target_position is None
 
 

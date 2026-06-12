@@ -55,7 +55,7 @@ POSITION_TOLERANCE = 2
 # target before the shade is considered stopped (e.g. by an external
 # controller or a physical obstruction). Generous enough to absorb the
 # motor ramp-up time and the gap before the first status push.
-STUCK_TIMEOUT = 5
+STUCK_TIMEOUT = 15
 
 PowerShadesConfigEntry = ConfigEntry["PowerShadesCoordinator"]
 
