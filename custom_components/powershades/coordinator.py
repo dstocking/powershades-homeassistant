@@ -49,6 +49,11 @@ _LOGGER = logging.getLogger(__name__)
 # Within this distance of the target the shade counts as arrived
 POSITION_TOLERANCE = 2
 
+# How many consecutive unchanged status updates before a shade that
+# isn't at its target is considered stopped (e.g. by an external
+# controller or a physical obstruction)
+STUCK_THRESHOLD = 2
+
 PowerShadesConfigEntry = ConfigEntry["PowerShadesCoordinator"]
 
 
@@ -82,6 +87,8 @@ class PowerShadesCoordinator(DataUpdateCoordinator[PowerShadesData]):
         self.mac_address: str | None = entry.data.get("mac")
         self.model: int | None = entry.data.get("model")
         self._target_position: int | None = None
+        self._last_position: int | None = None
+        self._unchanged_count = 0
         super().__init__(
             hass,
             _LOGGER,
@@ -118,13 +125,22 @@ class PowerShadesCoordinator(DataUpdateCoordinator[PowerShadesData]):
         )
 
     def _data_from_status(self, status: StatusReply) -> PowerShadesData:
-        if (
-            self._target_position is not None
-            and status.position is not None
-            and abs(status.position - self._target_position)
-            <= POSITION_TOLERANCE
-        ):
-            self._target_position = None
+        if self._target_position is not None and status.position is not None:
+            if abs(status.position - self._target_position) <= POSITION_TOLERANCE:
+                self._target_position = None
+                self._unchanged_count = 0
+            elif status.position == self._last_position:
+                self._unchanged_count += 1
+                if self._unchanged_count >= STUCK_THRESHOLD:
+                    # Position hasn't moved even though we think the shade
+                    # is heading to a target - an external controller or a
+                    # physical obstruction stopped it. Stop reporting
+                    # opening/closing.
+                    self._target_position = None
+                    self._unchanged_count = 0
+            else:
+                self._unchanged_count = 0
+        self._last_position = status.position
         return PowerShadesData(
             position=status.position,
             battery_mv=status.battery_mv,
