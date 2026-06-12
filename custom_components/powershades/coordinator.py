@@ -7,7 +7,7 @@ from datetime import timedelta
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, DeviceInfo
 from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
     UpdateFailed,
@@ -69,6 +69,7 @@ class PowerShadesCoordinator(DataUpdateCoordinator[PowerShadesData]):
         self.entry_id = entry.entry_id
         self.serial_number = entry.data.get("serial")
         self.device_name = entry.data.get("name")
+        self.mac_address: str | None = entry.data.get("mac")
         self._target_position: int | None = None
         super().__init__(
             hass,
@@ -94,6 +95,10 @@ class PowerShadesCoordinator(DataUpdateCoordinator[PowerShadesData]):
 
         return DeviceInfo(
             identifiers=identifiers,
+            connections=(
+                {(CONNECTION_NETWORK_MAC, self.mac_address)}
+                if self.mac_address else set()
+            ),
             name=name,
             manufacturer="PowerShades",
             model="Motorized Window Cover",
