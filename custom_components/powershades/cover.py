@@ -13,10 +13,9 @@ from homeassistant.components.cover import (
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
 from .coordinator import PowerShadesConfigEntry, PowerShadesCoordinator
+from .entity import PowerShadesEntity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -32,10 +31,9 @@ async def async_setup_entry(
     async_add_entities([PowerShadesCover(entry.runtime_data)])
 
 
-class PowerShadesCover(CoordinatorEntity[PowerShadesCoordinator], CoverEntity):
+class PowerShadesCover(PowerShadesEntity, CoverEntity):
     """PowerShades cover entity."""
 
-    _attr_has_entity_name = True
     _attr_name = None
     _attr_device_class = CoverDeviceClass.SHADE
     _attr_supported_features = (
@@ -47,12 +45,7 @@ class PowerShadesCover(CoordinatorEntity[PowerShadesCoordinator], CoverEntity):
 
     def __init__(self, coordinator: PowerShadesCoordinator) -> None:
         """Initialize the PowerShades cover."""
-        super().__init__(coordinator)
-        if coordinator.serial_number:
-            self._attr_unique_id = f"{DOMAIN}_{coordinator.serial_number}_cover"
-        else:
-            self._attr_unique_id = f"{DOMAIN}_{coordinator.entry_id}_cover"
-        self._attr_device_info = coordinator.device_info
+        super().__init__(coordinator, "cover")
 
     @property
     def current_cover_position(self) -> int | None:
