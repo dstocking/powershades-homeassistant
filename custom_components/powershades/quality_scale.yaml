@@ -74,10 +74,10 @@ rules:
   reauthentication-flow: exempt
   comment: |
     the device has no concept of authentication, nothing to re-authenticate
-  test-coverage: todo
+  test-coverage: done
   comment: |
-    config flow has full test coverage; coordinator, protocol and platform tests are still
-    needed for full silver coverage
+    tests cover the config flow, coordinator (polling, push updates, stuck-shade detection,
+    services), protocol parsing/building, and the cover, button and sensor platforms
 
   # Gold
   devices: done

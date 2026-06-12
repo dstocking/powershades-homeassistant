@@ -16,7 +16,7 @@ TEST_IP = "192.168.1.50"
 
 
 async def test_manual_flow_success(
-    hass: HomeAssistant, mock_discover_devices, mock_device_info
+    hass: HomeAssistant, mock_discover_devices, mock_device_info, mock_setup_entry
 ) -> None:
     """No devices discovered, user enters an IP manually and it works."""
     result = await hass.config_entries.flow.async_init(
@@ -92,7 +92,9 @@ async def test_manual_flow_duplicate(
     assert result["reason"] == "already_configured"
 
 
-async def test_discovery_pick_device(hass: HomeAssistant, mock_device_info) -> None:
+async def test_discovery_pick_device(
+    hass: HomeAssistant, mock_device_info, mock_setup_entry
+) -> None:
     """Discovered devices are offered for selection."""
     with patch(
         "custom_components.powershades.config_flow.async_discover_devices",
@@ -114,7 +116,9 @@ async def test_discovery_pick_device(hass: HomeAssistant, mock_device_info) -> N
     assert result["data"]["serial"] == 12345
 
 
-async def test_dhcp_discovery(hass: HomeAssistant, mock_device_info) -> None:
+async def test_dhcp_discovery(
+    hass: HomeAssistant, mock_device_info, mock_setup_entry
+) -> None:
     """A device found via DHCP is confirmed and added."""
     discovery_info = DhcpServiceInfo(
         ip=TEST_IP,

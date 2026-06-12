@@ -1,20 +1,35 @@
-"""Fixtures for PowerShades config flow tests."""
+"""Fixtures for PowerShades tests."""
 
-from unittest.mock import patch
+import struct
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from custom_components.powershades.const import DOMAIN, OP_GET_SHADE_NAME, OP_GET_STATUS
+from custom_components.powershades.protocol import build_packet
+from custom_components.powershades.udp import PowerShadesConnection
+
+from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+TEST_IP = "192.168.1.50"
+TEST_SERIAL = 12345
+TEST_NAME = "Bedroom Shade"
+
 
 @pytest.fixture(autouse=True)
-def mock_setup_entry():
-    """Avoid connecting to a real device when an entry is created."""
-    with (
-        patch("custom_components.powershades.async_setup_entry", return_value=True),
-        patch(
-            "custom_components.powershades.discovery.async_discover_devices",
-            return_value=[],
-        ),
+def mock_background_discovery():
+    """Prevent periodic background discovery from touching real sockets."""
+    with patch(
+        "custom_components.powershades.discovery.async_discover_devices",
+        return_value=[],
     ):
+        yield
+
+
+@pytest.fixture
+def mock_setup_entry():
+    """Bypass full entry setup, e.g. for config flow tests."""
+    with patch("custom_components.powershades.async_setup_entry", return_value=True):
         yield
 
 
@@ -36,3 +51,61 @@ def mock_device_info():
         return_value={"serial": 12345, "name": "Bedroom Shade", "model": 1},
     ) as mock:
         yield mock
+
+
+def status_packet(position: int = 50, battery_mv: int = 3700) -> bytes:
+    """Build a Get Status reply packet with the given position and battery."""
+    payload = struct.pack(
+        "<hhHHIIIhII", position, 0, 0, battery_mv, 0, 0, 0, 20, position, 0
+    )
+    return build_packet(OP_GET_STATUS, payload=payload)
+
+
+def shade_name_packet(name: str) -> bytes:
+    """Build a Get PoE Shade Name reply packet."""
+    payload = b"\x00" + name.encode("ascii").ljust(50, b"\x00")
+    return build_packet(OP_GET_SHADE_NAME, payload=payload)
+
+
+@pytest.fixture
+def mock_connection():
+    """Mock the UDP connection so setup never touches real sockets."""
+
+    async def fake_request(op, payload=b"", timeout=None, retries=None):
+        if op == OP_GET_STATUS:
+            return status_packet()
+        if op == OP_GET_SHADE_NAME:
+            return shade_name_packet(TEST_NAME)
+        return build_packet(op)
+
+    with (
+        patch.object(PowerShadesConnection, "async_connect", AsyncMock()),
+        patch.object(
+            PowerShadesConnection,
+            "async_request",
+            AsyncMock(side_effect=fake_request),
+        ),
+        patch.object(PowerShadesConnection, "close"),
+        patch("custom_components.powershades.get_mac_address", return_value=None),
+    ):
+        yield
+
+
+@pytest.fixture
+async def config_entry(hass, mock_connection):
+    """Set up a loaded PowerShades config entry with a mocked connection."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "ip": TEST_IP,
+            "serial": TEST_SERIAL,
+            "name": TEST_NAME,
+            "model": 1,
+            "mac": "d8:3a:f5:11:22:33",
+        },
+        unique_id=str(TEST_SERIAL),
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    return entry
