@@ -1,170 +1,70 @@
 """PowerShades services."""
-import logging
-from typing import Any
+from __future__ import annotations
 
-from homeassistant.core import HomeAssistant, ServiceCall
+import logging
+
+import voluptuous as vol
+
+from homeassistant.config_entries import ConfigEntryState
+from homeassistant.const import ATTR_ENTITY_ID
+from homeassistant.core import HomeAssistant, ServiceCall, callback
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_registry as er
 
 from .const import DOMAIN
+from .coordinator import PowerShadesCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
+SERVICE_SCHEMA = vol.Schema({vol.Required(ATTR_ENTITY_ID): cv.entity_id})
 
-async def async_setup_services(hass: HomeAssistant) -> None:
+
+def _get_coordinator(
+    hass: HomeAssistant, call: ServiceCall
+) -> PowerShadesCoordinator:
+    """Resolve the coordinator for the entity targeted by a service call."""
+    entity_id = call.data[ATTR_ENTITY_ID]
+    entity = er.async_get(hass).async_get(entity_id)
+    if entity is None or entity.platform != DOMAIN:
+        raise ServiceValidationError(
+            f"{entity_id} is not a PowerShades entity")
+    entry = hass.config_entries.async_get_entry(entity.config_entry_id)
+    if entry is None or entry.state is not ConfigEntryState.LOADED:
+        raise HomeAssistantError(
+            f"The PowerShades config entry for {entity_id} is not loaded")
+    return entry.runtime_data
+
+
+@callback
+def async_setup_services(hass: HomeAssistant) -> None:
     """Set up PowerShades services."""
 
-    async def async_toggle_shade(call: ServiceCall) -> None:
-        """Toggle PowerShades device between open and closed."""
-        entity_id = call.data.get("entity_id")
-        if not entity_id:
-            _LOGGER.error("No entity_id provided")
-            return
+    async def toggle_shade(call: ServiceCall) -> None:
+        await _get_coordinator(hass, call).async_toggle()
 
-        entity_registry = er.async_get(hass)
-        entity = entity_registry.async_get(entity_id)
-        if not entity or entity.platform != DOMAIN:
-            _LOGGER.error("Invalid entity_id: %s", entity_id)
-            return
+    async def set_upper_limit(call: ServiceCall) -> None:
+        await _get_coordinator(hass, call).async_set_upper_limit()
 
-        config_entry_id = entity.config_entry_id
-        device = hass.data[DOMAIN].get(config_entry_id)
-        if not device:
-            _LOGGER.error("Device not found for entity: %s", entity_id)
-            return
+    async def set_lower_limit(call: ServiceCall) -> None:
+        await _get_coordinator(hass, call).async_set_lower_limit()
 
-        await device.async_toggle()
+    async def clear_limits(call: ServiceCall) -> None:
+        await _get_coordinator(hass, call).async_clear_limits()
 
-    async def async_set_upper_limit(call: ServiceCall) -> None:
-        """Set upper limit for PowerShades device."""
-        entity_id = call.data.get("entity_id")
-        if not entity_id:
-            _LOGGER.error("No entity_id provided")
-            return
+    async def step_up(call: ServiceCall) -> None:
+        await _get_coordinator(hass, call).async_step_up()
 
-        entity_registry = er.async_get(hass)
-        entity = entity_registry.async_get(entity_id)
-        if not entity or entity.platform != DOMAIN:
-            _LOGGER.error("Invalid entity_id: %s", entity_id)
-            return
+    async def step_down(call: ServiceCall) -> None:
+        await _get_coordinator(hass, call).async_step_down()
 
-        config_entry_id = entity.config_entry_id
-        device = hass.data[DOMAIN].get(config_entry_id)
-        if not device:
-            _LOGGER.error("Device not found for entity: %s", entity_id)
-            return
-
-        await device.async_set_upper_limit()
-
-    async def async_set_lower_limit(call: ServiceCall) -> None:
-        """Set lower limit for PowerShades device."""
-        entity_id = call.data.get("entity_id")
-        if not entity_id:
-            _LOGGER.error("No entity_id provided")
-            return
-
-        entity_registry = er.async_get(hass)
-        entity = entity_registry.async_get(entity_id)
-        if not entity or entity.platform != DOMAIN:
-            _LOGGER.error("Invalid entity_id: %s", entity_id)
-            return
-
-        config_entry_id = entity.config_entry_id
-        device = hass.data[DOMAIN].get(config_entry_id)
-        if not device:
-            _LOGGER.error("Device not found for entity: %s", entity_id)
-            return
-
-        await device.async_set_lower_limit()
-
-    async def async_clear_limits(call: ServiceCall) -> None:
-        """Clear limits for PowerShades device."""
-        entity_id = call.data.get("entity_id")
-        if not entity_id:
-            _LOGGER.error("No entity_id provided")
-            return
-
-        entity_registry = er.async_get(hass)
-        entity = entity_registry.async_get(entity_id)
-        if not entity or entity.platform != DOMAIN:
-            _LOGGER.error("Invalid entity_id: %s", entity_id)
-            return
-
-        config_entry_id = entity.config_entry_id
-        device = hass.data[DOMAIN].get(config_entry_id)
-        if not device:
-            _LOGGER.error("Device not found for entity: %s", entity_id)
-            return
-
-        await device.async_clear_limits()
-
-    async def async_step_up(call: ServiceCall) -> None:
-        """Step up for PowerShades device."""
-        entity_id = call.data.get("entity_id")
-        if not entity_id:
-            _LOGGER.error("No entity_id provided")
-            return
-
-        entity_registry = er.async_get(hass)
-        entity = entity_registry.async_get(entity_id)
-        if not entity or entity.platform != DOMAIN:
-            _LOGGER.error("Invalid entity_id: %s", entity_id)
-            return
-
-        config_entry_id = entity.config_entry_id
-        device = hass.data[DOMAIN].get(config_entry_id)
-        if not device:
-            _LOGGER.error("Device not found for entity: %s", entity_id)
-            return
-
-        await device.async_step_up()
-
-    async def async_step_down(call: ServiceCall) -> None:
-        """Step down for PowerShades device."""
-        entity_id = call.data.get("entity_id")
-        if not entity_id:
-            _LOGGER.error("No entity_id provided")
-            return
-
-        entity_registry = er.async_get(hass)
-        entity = entity_registry.async_get(entity_id)
-        if not entity or entity.platform != DOMAIN:
-            _LOGGER.error("Invalid entity_id: %s", entity_id)
-            return
-
-        config_entry_id = entity.config_entry_id
-        device = hass.data[DOMAIN].get(config_entry_id)
-        if not device:
-            _LOGGER.error("Device not found for entity: %s", entity_id)
-            return
-
-        await device.async_step_down()
-
-    # Register services
-    hass.services.async_register(
-        DOMAIN, "toggle_shade", async_toggle_shade
-    )
-    hass.services.async_register(
-        DOMAIN, "set_upper_limit", async_set_upper_limit
-    )
-    hass.services.async_register(
-        DOMAIN, "set_lower_limit", async_set_lower_limit
-    )
-    hass.services.async_register(
-        DOMAIN, "clear_limits", async_clear_limits
-    )
-    hass.services.async_register(
-        DOMAIN, "step_up", async_step_up
-    )
-    hass.services.async_register(
-        DOMAIN, "step_down", async_step_down
-    )
-
-
-async def async_unload_services(hass: HomeAssistant) -> None:
-    """Unload PowerShades services."""
-    hass.services.async_remove(DOMAIN, "toggle_shade")
-    hass.services.async_remove(DOMAIN, "set_upper_limit")
-    hass.services.async_remove(DOMAIN, "set_lower_limit")
-    hass.services.async_remove(DOMAIN, "clear_limits")
-    hass.services.async_remove(DOMAIN, "step_up")
-    hass.services.async_remove(DOMAIN, "step_down")
+    for name, handler in (
+        ("toggle_shade", toggle_shade),
+        ("set_upper_limit", set_upper_limit),
+        ("set_lower_limit", set_lower_limit),
+        ("clear_limits", clear_limits),
+        ("step_up", step_up),
+        ("step_down", step_down),
+    ):
+        hass.services.async_register(
+            DOMAIN, name, handler, schema=SERVICE_SCHEMA)

@@ -38,8 +38,8 @@ This integration can be installed via HACS as a custom repository:
 1. Go to **Settings** → **Devices & Services**
 2. Click **Add Integration**
 3. Search for "PowerShades"
-4. Enter your PowerShades controller's IP address and port
-5. Configure your blinds
+4. The integration scans your network and lists discovered shades — pick one, or choose manual entry and provide the shade's IP address
+5. The device is verified before the entry is created; if it doesn't respond you'll get a "cannot connect" error
 
 ## Usage
 
@@ -54,10 +54,14 @@ Once configured, your PowerShades will appear as covers in Home Assistant. You c
 
 ### Button Controls
 
-Additional buttons provide quick access to common operations:
+Each shade also gets buttons for:
 
-- **Preset Positions**: Quick access to favorite positions
-- **Group Operations**: Control multiple blinds simultaneously
+- **Toggle Shade**: Open/close based on current position, or stop if moving
+- **Set Upper/Lower Limit, Clear Limits, Step Up/Down**: Limit calibration tools (under the device's Configuration section)
+
+### Diagnostic Sensors
+
+Battery percentage and battery voltage are available as diagnostic sensor entities (disabled by default — enable them from the device page). Note: in versions before 0.2.0 these values were exposed as attributes on the cover entity; templates referencing `battery_percentage`/`battery_voltage_mv` cover attributes should switch to the sensors.
 
 ## Requirements
 
@@ -113,6 +117,13 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 For issues and feature requests, please use the [GitHub Issues](https://github.com/yourusername/powershades-homeassistant/issues) page.
 
 ## Changelog
+
+### 0.2.0
+- Rewrote UDP communication on asyncio (no more blocking calls or background threads in the event loop)
+- Consolidated state handling into a single DataUpdateCoordinator
+- Battery data moved from cover attributes to diagnostic sensor entities
+- Config flow now verifies the device responds before creating an entry, and updates the stored IP when re-adding a known shade
+- Added translations, proper service error reporting, and HACS metadata
 
 ### 0.1.0
 - Initial release

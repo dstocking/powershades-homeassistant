@@ -1,0 +1,40 @@
+"""Background discovery of PowerShades devices."""
+from __future__ import annotations
+
+import logging
+from datetime import timedelta
+
+from homeassistant.config_entries import SOURCE_INTEGRATION_DISCOVERY
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import discovery_flow
+from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.start import async_at_started
+
+from .const import DOMAIN
+from .udp import async_discover_devices
+
+_LOGGER = logging.getLogger(__name__)
+
+DISCOVERY_INTERVAL = timedelta(minutes=15)
+
+
+@callback
+def async_start_discovery(hass: HomeAssistant) -> None:
+    """Start periodic background discovery of PowerShades devices."""
+
+    async def _async_scan(*_) -> None:
+        devices = await async_discover_devices(hass)
+        for device in devices:
+            discovery_flow.async_create_flow(
+                hass,
+                DOMAIN,
+                context={"source": SOURCE_INTEGRATION_DISCOVERY},
+                data=device,
+            )
+
+    # Scan once after startup, then periodically. Battery shades sleep,
+    # so a single scan can miss them — the interval catches stragglers.
+    async_at_started(hass, _async_scan)
+    async_track_time_interval(
+        hass, _async_scan, DISCOVERY_INTERVAL, cancel_on_shutdown=True
+    )
