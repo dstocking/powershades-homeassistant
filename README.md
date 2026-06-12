@@ -1,6 +1,12 @@
 # PowerShades Home Assistant Integration
+The Home Assistant Powershades integration allows to control your [Powershades](https://powershades.com) shades. This integration is only tested with PoE and Wi-Fi Powershades, so support with the RF hub may be limited or nonexistent.
 
-A Home Assistant custom integration for controlling PowerShades motorized blinds via UDP communication.
+If you have RF shades it is recommended you buy a [Bond Bridge](https://bondhome.io/) and connect your RF shades using that, then connect it to Home Assistant using the [built in integration](https://www.home-assistant.io/integrations/bond/). If you already have Powershade's RF Hub, please open an issue and report what the results are trying to connect the hub to Home Assistant using this integration.
+
+## How you can use this integration
+This intgeration can be used to control your Powershades shades, you can have it open in the morning to get you out of the bed, or close them at sunset for extra privacy. 
+ 
+PoE Powershades do not come with a remote, so controlling them without a smart device is difficult. To fix this you can use a smart button (such as a Zigbee or Z-Wave button) with an automation to control your shade. This may be convient to you or others, including guests controlling your shades without having to open a smart device.
 
 ## Features
 
@@ -23,7 +29,7 @@ The integration's discovery step will usually find shades on your network automa
 
 ## Installation
 
-### HACS Installation
+### HACS Installation (recommended)
 
 This integration can be installed via HACS as a custom repository:
 
@@ -38,11 +44,16 @@ This integration can be installed via HACS as a custom repository:
 
 **Note**: This integration uses semantic versioning with proper GitHub releases. See the [Releases](https://github.com/dstocking/powershades-homeassistant/releases) page for the latest version.
 
-### Manual Installation
+### Manual Installation (not recommended)
 
 1. Download this repository (clone or download ZIP)
 2. Copy the `custom_components/powershades` folder to your Home Assistant `config/custom_components/` directory
 3. Restart Home Assistant
+
+## Supported Devices
+Any PoE and Wi-Fi Powershade shade or a Powershade RF hub with UDP communication enabled on the same local network as Home Assistant
+
+⚠️ Note: The RF Powershades bridge is currently untested and may be unsupported. For RF Powershades, please use a [Bond Bridge](https://bondhome.io/).
 
 ## Configuration
 
@@ -71,21 +82,25 @@ Each shade also gets buttons for:
 - **Identify**: Makes the shade motor wiggle so you can tell which physical shade this is (under Diagnostic)
 - **Jog Up/Down, Set Upper/Lower Limit, Clear Limits, Step Up/Down**: Limit calibration tools (under the device's Configuration section). Typical workflow: jog near the desired position, step to fine-tune, then set the limit.
 
+### Diagnostic Sensors
+
+Battery percentage and battery voltage are available as diagnostic sensor entities (disabled by default — enable them from the device page). Note: in versions before 0.2.0 these values were exposed as attributes on the cover entity; templates referencing `battery_percentage`/`battery_voltage_mv` cover attributes should switch to the sensors.
+
 ### Services
 
 Besides the standard cover services, the integration provides `powershades.toggle_shade`, `powershades.jog_up`/`jog_down`, `powershades.step_up`/`step_down`, `powershades.set_upper_limit`/`set_lower_limit`/`clear_limits`, and `powershades.set_shade_name` (renames the shade on the device itself; the Home Assistant device name follows).
+
 
 ### Known Limitations
 
 PowerShades devices send replies and asynchronous move feedback only to the **last controller that sent them a command** ("UDP master"). Avoid running PowerShades Config.NET or another driver at the same time as Home Assistant — control still works, but live position feedback may intermittently lag until the next poll.
 
-### Diagnostic Sensors
-
-Battery percentage and battery voltage are available as diagnostic sensor entities (disabled by default — enable them from the device page). Note: in versions before 0.2.0 these values were exposed as attributes on the cover entity; templates referencing `battery_percentage`/`battery_voltage_mv` cover attributes should switch to the sensors.
 
 ### Data Updates
 
 The shade pushes its status to Home Assistant in real time whenever Home Assistant is the one controlling it ("UDP master"). On top of that, Home Assistant polls the shade every 10 seconds (every 5 seconds while the position is unknown) so that changes made by another controller — such as the PowerShades app or a Control4 system — are also picked up.
+
+All communication is local and the data does not leave your house, which is kind of weird considering that in the offical Powershades app, all data goes through their cloud. The device will work without an internet connection in the short term. It is unknown how the device will behave without an internet connection long term.
 
 ### Automation Examples
 
@@ -131,12 +146,14 @@ mode: single
 - Home Assistant 2023.8.0 or newer
 - PowerShades controller with UDP communication enabled
 
-## Supported Devices
-
-This integration supports PowerShades controllers that communicate via UDP protocol.
-
 ## Troubleshooting
 
+### I got an error about it not being able to connect
+- This means that Home Assistant could not communicate to the shade, make sure home assistant can access port 42 on your shade, and that UDP broadcasts can be routed between different subnets if needed.
+- You entered a wrong IP address or you entered an IP address that was already in use by a config entry
+### Cover entity shows as unavailable 
+- This means that Home Assistant could not communicate to the shade, make sure home assistant can access port 42 on your shade, and that UDP broadcasts can be routed between different subnets if needed.
+- It could also mean that your shade is not connected to your local network
 ### HACS Installation Issues
 
 If you encounter errors when installing via HACS:
@@ -147,14 +164,16 @@ If you encounter errors when installing via HACS:
 
 ### Debug Logging
 
-Enable debug logging by adding to your `configuration.yaml`:
+Click this button in the integration menu in the top right enable debuging log
 
-```yaml
-logger:
-  default: info
-  logs:
-    custom_components.powershades: debug
-```
+<img width="378" height="244" alt="Screenshot 2026-05-28 at 4 40 56 PM" src="https://github.com/user-attachments/assets/443bae92-4350-4ef5-bb4f-e13d6ad17e52" />
+
+If you're confused by what I just showed you
+- Navigate to Settings → Devices & Services and select the PowerShades integration.
+- Click the three dots menu in the top right and select Enable debug logging.
+  
+Then trigger the error, and download the logs from Settings > System > Logs > Download logs
+If you stop the debuging log from the Home Assistant Companion App it should automatically download
 
 ## Removing This Integration
 
@@ -163,8 +182,10 @@ Removing this integration is the same as most HACS integrations:
 - Go to **Settings** → **Devices & Services** and select the PowerShades integration card.
 - From the list of devices, select the PowerShades entry.
 - Next to the entry, select the three-dot menu, then select **Delete**.
+- Repeat steps 2 and 3 for every entry you have
 - If installed through HACS, go to HACS, select the three-dot menu for this integration, then select **Remove**.
-- If you did a manual installation, delete the `custom_components/powershades` folder, then restart Home Assistant to clear the cache.
+- If you did a manual installation, delete the `custom_components/powershades` folder,
+- Then (regradless of installtion method) restart Home Assistant to clear the cache.
 
 ## Development
 
@@ -191,6 +212,26 @@ For issues and feature requests, please use the [GitHub Issues](https://github.c
 
 ## Changelog
 
+### v0.4.1
+- Status polls no longer time out (and flood the log with errors) on real hardware. Real shade firmware does not echo the request's sequence number on Get Status (0x1D) — it always replies with sequence 1 (verified against both a Wi-Fi and a PoE shade). Matching replies by (op, sequence) made every poll time out while its reply was processed as an unsolicited push, flapping the coordinator between success and failure and logging an error on nearly every 10-second poll cycle. Replies are now matched by opcode alone, which is safe because requests on a connection are serialized. The same mismatch could also make commands report "did not acknowledge" even though the shade executed them.
+
+### v0.4.0 
+#### Reliability
+- Every command now waits for the device's acknowledgement reply and retries on loss — unacknowledged commands surface as errors in the UI instead of being silently dropped
+- Replies are matched by op code and sequence number, so stale replies can't be mistaken for current ones
+- All received packets are length- and CRC-validated; corrupt packets are discarded
+- Fixed async move feedback being diverted after discovery scans (devices report to the last "UDP master" — each shade's coordinator now re-asserts itself after every broadcast)
+#### New features
+- Identify button (Diagnostic): wiggles the shade motor so you can tell which shade is which
+- Jog Up / Jog Down buttons and services (Configuration): continuous movement for the limit-setting workflow — jog near the position, step to trim, set the limit
+- powershades.set_shade_name service: renames the shade on the device itself, verifies by reading the name back, and updates the Home Assistant device name to match
+- Device info now shows the real model (PoE Shade / RF Gateway) from the device's serial reply
+
+### v0.3.0 
+- Each shade's MAC address is registered as a device connection and shown on the device page in Home Assistant
+- MAC sources: DHCP discovery info when the shade is found that way, otherwise an ARP lookup right after the first successful poll (new dependency: getmac)
+- With MACs registered, Home Assistant now re-fires discovery when a known shade's DHCP lease changes — the integration updates the stored IP automatically, so shades keep working after DHCP reassigns addresses
+  
 ### 0.2.0
 - Rewrote UDP communication on asyncio (no more blocking calls or background threads in the event loop)
 - Consolidated state handling into a single DataUpdateCoordinator
