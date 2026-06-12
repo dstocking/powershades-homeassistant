@@ -7,9 +7,10 @@ rules:
   comment: |
     coordinator polls every 10 seconds (5 seconds while position is unknown), and also updates
     immediately on UDP push replies.
-  brands: todo
+  brands: done
   comment: |
-    needs verification - not sure if this integration has an entry in the home-assistant/brands repo
+    icon/logo assets are in custom_components/powershades/brand/, ready to submit to
+    home-assistant/brands under custom_integrations/powershades/
   common-modules: done
   comment: |
     coordinator.py, protocol.py, udp.py and discovery.py split out the shared logic cleanly
