@@ -1,305 +1,244 @@
-import logging
-import socket
-import struct
-import time
+"""Asyncio UDP transport and discovery for PowerShades devices."""
+from __future__ import annotations
+
 import asyncio
+import logging
+from collections.abc import Callable
+
 from homeassistant.components import network
+from homeassistant.core import HomeAssistant
+
+from .const import (
+    DISCOVERY_TIMEOUT,
+    OP_GET_DEVICE_NAME,
+    OP_GET_SERIAL,
+    OP_GET_SHADE_NAME,
+    OP_GET_STATUS,
+    REQUEST_RETRIES,
+    REQUEST_TIMEOUT,
+    UDP_PORT,
+)
+from .protocol import (
+    GET_SHADE_NAME_PAYLOAD,
+    StatusReply,
+    build_packet,
+    parse_device_name_reply,
+    parse_header,
+    parse_serial_reply,
+    parse_shade_name_reply,
+    parse_status_reply,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
-UDP_PORT = 42
 BROADCAST_IP = "255.255.255.255"
-GET_SERIAL_OPCODE = 0x00
-GET_DEVICE_NAME_OPCODE = 0x3A
-GET_SHADE_NAME_OPCODE = 0x34
-
-# Discovery settings
-DISCOVERY_TIMEOUT = 5.0
-DISCOVERY_RETRIES = 2
-DEVICE_NAME_TIMEOUT = 2.0
-
-CrcTable = [
-    0x0000, 0x1021, 0x2042, 0x3063, 0x4084, 0x50a5, 0x60c6, 0x70e7,
-    0x8108, 0x9129, 0xa14a, 0xb16b, 0xc18c, 0xd1ad, 0xe1ce, 0xf1ef,
-    0x1231, 0x0210, 0x3273, 0x2252, 0x52b5, 0x4294, 0x72f7, 0x62d6,
-    0x9339, 0x8318, 0xb37b, 0xa35a, 0xd3bd, 0xc39c, 0xf3ff, 0xe3de,
-    0x2462, 0x3443, 0x0420, 0x1401, 0x64e6, 0x74c7, 0x44a4, 0x5485,
-    0xa56a, 0xb54b, 0x8528, 0x9509, 0xe5ee, 0xf5cf, 0xc5ac, 0xd58d,
-    0x3653, 0x2672, 0x1611, 0x0630, 0x76d7, 0x66f6, 0x5695, 0x46b4,
-    0xb75b, 0xa77a, 0x9719, 0x8738, 0xf7df, 0xe7fe, 0xd79d, 0xc7bc,
-    0x48c4, 0x58e5, 0x6886, 0x78a7, 0x0840, 0x1861, 0x2802, 0x3823,
-    0xc9cc, 0xd9ed, 0xe98e, 0xf9af, 0x8948, 0x9969, 0xa90a, 0xb92b,
-    0x5af5, 0x4ad4, 0x7ab7, 0x6a96, 0x1a71, 0x0a50, 0x3a33, 0x2a12,
-    0xdbfd, 0xcbdc, 0xfbbf, 0xeb9e, 0x9b79, 0x8b58, 0xbb3b, 0xab1a,
-    0x6ca6, 0x7c87, 0x4ce4, 0x5cc5, 0x2c22, 0x3c03, 0x0c60, 0x1c41,
-    0xedae, 0xfd8f, 0xcdec, 0xddcd, 0xad2a, 0xbd0b, 0x8d68, 0x9d49,
-    0x7e97, 0x6eb6, 0x5ed5, 0x4ef4, 0x3e13, 0x2e32, 0x1e51, 0x0e70,
-    0xff9f, 0xefbe, 0xdfdd, 0xcffc, 0xbf1b, 0xaf3a, 0x9f59, 0x8f78,
-    0x9188, 0x81a9, 0xb1ca, 0xa1eb, 0xd10c, 0xc12d, 0xf14e, 0xe16f,
-    0x1080, 0x00a1, 0x30c2, 0x20e3, 0x5004, 0x4025, 0x7046, 0x6067,
-    0x83b9, 0x9398, 0xa3fb, 0xb3da, 0xc33d, 0xd31c, 0xe37f, 0xf35e,
-    0x02b1, 0x1290, 0x22f3, 0x32d2, 0x4235, 0x5214, 0x6277, 0x7256,
-    0xb5ea, 0xa5cb, 0x95a8, 0x8589, 0xf56e, 0xe54f, 0xd52c, 0xc50d,
-    0x34e2, 0x24c3, 0x14a0, 0x0481, 0x7466, 0x6447, 0x5424, 0x4405,
-    0xa7db, 0xb7fa, 0x8799, 0x97b8, 0xe75f, 0xf77e, 0xc71d, 0xd73c,
-    0x26d3, 0x36f2, 0x0691, 0x16b0, 0x6657, 0x7676, 0x4615, 0x5634,
-    0xd94c, 0xc96d, 0xf90e, 0xe92f, 0x99c8, 0x89e9, 0xb98a, 0xa9ab,
-    0x5844, 0x4865, 0x7806, 0x6827, 0x18c0, 0x08e1, 0x3882, 0x28a3,
-    0xcb7d, 0xdb5c, 0xeb3f, 0xfb1e, 0x8bf9, 0x9bd8, 0xabbb, 0xbb9a,
-    0x4a75, 0x5a54, 0x6a37, 0x7a16, 0x0af1, 0x1ad0, 0x2ab3, 0x3a92,
-    0xfd2e, 0xed0f, 0xdd6c, 0xcd4d, 0xbdaa, 0xad8b, 0x9de8, 0x8dc9,
-    0x7c26, 0x6c07, 0x5c64, 0x4c45, 0x3ca2, 0x2c83, 0x1ce0, 0x0cc1,
-    0xef1f, 0xff3e, 0xcf5d, 0xdf7c, 0xaf9b, 0xbfba, 0x8fd9, 0x9ff8,
-    0x6e17, 0x7e36, 0x4e55, 0x5e74, 0x2e93, 0x3eb2, 0x0ed1, 0x1ef0
-]
 
 
-def crc16_xmodem(data: bytes) -> int:
-    """Calculate CRC16-XMODEM checksum."""
-    crc = 0
-    for b in data:
-        crc = ((crc << 8) & 0xFFFF) ^ CrcTable[((crc >> 8) ^ b) & 0xFF]
-    return crc
+class PowerShadesTimeoutError(Exception):
+    """The device did not reply in time."""
 
 
-def build_get_serial_packet(sequence=0x01, channel=0x00):
-    """Build Get Serial Number packet."""
-    length = 0
-    op = GET_SERIAL_OPCODE
-    reserved = 0
-    crc_data = struct.pack('<BBBB', op, sequence, channel, reserved)
-    crc = crc16_xmodem(crc_data)
-    packet = struct.pack('<HHBBBB', length, crc, op,
-                         sequence, channel, reserved)
-    return packet
+class _PowerShadesProtocol(asyncio.DatagramProtocol):
+    """Datagram protocol routing replies to pending requests and status pushes."""
+
+    def __init__(self, on_status: Callable[[StatusReply], None]) -> None:
+        self._on_status = on_status
+        self.pending: dict[int, asyncio.Future[bytes]] = {}
+
+    def datagram_received(self, data: bytes, addr) -> None:
+        header = parse_header(data)
+        if header is None:
+            return
+        _LOGGER.debug("Received op=0x%02X from %s: %s",
+                      header.op, addr[0], data.hex())
+        fut = self.pending.pop(header.op, None)
+        if fut is not None and not fut.done():
+            fut.set_result(data)
+            return
+        # Unsolicited packet — push status updates to the coordinator
+        if header.op == OP_GET_STATUS:
+            status = parse_status_reply(data)
+            if status is not None:
+                self._on_status(status)
+
+    def error_received(self, exc: Exception) -> None:
+        _LOGGER.debug("UDP error received: %s", exc)
 
 
-def build_get_device_name_packet(sequence=0x01, channel=0x00):
-    """Build Get Device Name packet for RF Gateway and channels."""
-    length = 0
-    op = GET_DEVICE_NAME_OPCODE
-    reserved = 0
-    crc_data = struct.pack('<BBBB', op, sequence, channel, reserved)
-    crc = crc16_xmodem(crc_data)
-    packet = struct.pack('<HHBBBB', length, crc, op,
-                         sequence, channel, reserved)
-    return packet
+class PowerShadesConnection:
+    """A single UDP endpoint talking to one PowerShades device."""
+
+    def __init__(self, host: str) -> None:
+        self._host = host
+        self._transport: asyncio.DatagramTransport | None = None
+        self._protocol: _PowerShadesProtocol | None = None
+        self._lock = asyncio.Lock()
+        self._sequence = 0
+        self._status_callback: Callable[[StatusReply], None] | None = None
+
+    @property
+    def host(self) -> str:
+        """Return the device IP address."""
+        return self._host
+
+    def set_status_callback(
+        self, callback: Callable[[StatusReply], None]
+    ) -> None:
+        """Set the callback invoked for every received status packet."""
+        self._status_callback = callback
+
+    def _handle_status(self, status: StatusReply) -> None:
+        if self._status_callback is not None:
+            self._status_callback(status)
+
+    async def async_connect(self) -> None:
+        """Create the datagram endpoint on an ephemeral local port."""
+        loop = asyncio.get_running_loop()
+        self._transport, self._protocol = await loop.create_datagram_endpoint(
+            lambda: _PowerShadesProtocol(self._handle_status),
+            local_addr=("0.0.0.0", 0),
+        )
+
+    def send(self, op: int, payload: bytes = b"") -> None:
+        """Send a fire-and-forget command packet."""
+        if self._transport is None:
+            raise PowerShadesTimeoutError("Connection is closed")
+        self._sequence = (self._sequence + 1) % 256
+        packet = build_packet(op, self._sequence, payload=payload)
+        self._transport.sendto(packet, (self._host, UDP_PORT))
+        _LOGGER.debug("Sent op=0x%02X to %s:%d: %s",
+                      op, self._host, UDP_PORT, packet.hex())
+
+    async def async_request(
+        self,
+        op: int,
+        payload: bytes = b"",
+        timeout: float = REQUEST_TIMEOUT,
+        retries: int = REQUEST_RETRIES,
+    ) -> bytes:
+        """Send a packet and wait for a reply with the same opcode."""
+        if self._protocol is None:
+            raise PowerShadesTimeoutError("Connection is closed")
+        async with self._lock:
+            for _attempt in range(retries + 1):
+                fut: asyncio.Future[bytes] = (
+                    asyncio.get_running_loop().create_future()
+                )
+                self._protocol.pending[op] = fut
+                self.send(op, payload)
+                try:
+                    return await asyncio.wait_for(fut, timeout)
+                except TimeoutError:
+                    pass
+                finally:
+                    self._protocol.pending.pop(op, None)
+            raise PowerShadesTimeoutError(
+                f"No reply to op 0x{op:02X} from {self._host}"
+            )
+
+    def close(self) -> None:
+        """Close the endpoint."""
+        if self._transport is not None:
+            self._transport.close()
+            self._transport = None
+            self._protocol = None
 
 
-def build_get_shade_name_packet(sequence=0x01, channel=0x00):
-    """Build Get PoE Shade Name packet."""
-    length = 1  # 1 byte payload for Get/Set flag
-    op = GET_SHADE_NAME_OPCODE
-    reserved = 0
-    get_set = 0  # 0 = Get, 1 = Set
-    crc_data = struct.pack('<BBBBB', op, sequence, channel, reserved, get_set)
-    crc = crc16_xmodem(crc_data)
-    packet = struct.pack('<HHBBBBB', length, crc, op,
-                         sequence, channel, reserved, get_set)
-    return packet
+class _DiscoveryProtocol(asyncio.DatagramProtocol):
+    """Collects Get Serial replies during broadcast discovery."""
+
+    def __init__(self, results: dict[str, dict]) -> None:
+        self._results = results
+
+    def datagram_received(self, data: bytes, addr) -> None:
+        parsed = parse_serial_reply(data)
+        # Key by the packet source address — it is authoritative, the
+        # IP embedded in the reply payload is not.
+        if parsed is not None and addr[0] not in self._results:
+            self._results[addr[0]] = {
+                "ip": addr[0],
+                "serial": parsed["serial"],
+                "model": parsed["model"],
+            }
+            _LOGGER.debug("Discovered device %s (serial %s)",
+                          addr[0], parsed["serial"])
+
+    def error_received(self, exc: Exception) -> None:
+        _LOGGER.debug("Discovery UDP error: %s", exc)
 
 
-def parse_serial_reply(data: bytes):
-    """Parse Get Serial Number reply packet."""
-    # See protocol doc for offsets
-    if len(data) < 24:
-        return None
-    length, crc, op, seq, channel, reserved = struct.unpack(
-        '<HHBBBB', data[:8])
-    model = data[8]
-    serial_low = struct.unpack('<I', data[12:16])[0]
-    serial_high = struct.unpack('<I', data[16:20])[0]
-    ip_bytes = data[24:28]
-    ip_addr = '.'.join(str(b) for b in ip_bytes[::-1])
-    return {
-        'model': model,
-        'serial': (serial_high << 32) | serial_low,
-        'ip': ip_addr,
-        'raw': data
-    }
-
-
-def parse_device_name_reply(data: bytes):
-    """Parse Get Device Name reply packet."""
-    if len(data) < 58:  # 8 bytes header + 50 bytes device name
-        return None
-    length, crc, op, seq, channel, reserved = struct.unpack(
-        '<HHBBBB', data[:8])
-    device_name_bytes = data[8:58]
-    # Remove null bytes and decode
-    device_name = device_name_bytes.split(b'\x00')[0].decode(
-        'ascii', errors='ignore').strip()
-    return {
-        'device_name': device_name,
-        'channel': channel,
-        'raw': data
-    }
-
-
-def parse_shade_name_reply(data: bytes):
-    """Parse Get PoE Shade Name reply packet."""
-    if len(data) < 59:  # 8 bytes header + 1 byte get/set + 50 bytes device name
-        return None
-    length, crc, op, seq, channel, reserved, get_set = struct.unpack(
-        '<HHBBBBB', data[:9])
-    device_name_bytes = data[9:59]
-    # Remove null bytes and decode
-    device_name = device_name_bytes.split(b'\x00')[0].decode(
-        'ascii', errors='ignore').strip()
-    return {
-        'device_name': device_name,
-        'get_set': get_set,
-        'raw': data
-    }
-
-
-async def async_discover_devices(hass, timeout=DISCOVERY_TIMEOUT):
-    """Discover PowerShades devices on the network using UDP broadcast."""
-    _LOGGER.info("Starting PowerShades device discovery...")
+async def async_discover_devices(
+    hass: HomeAssistant, timeout: float = DISCOVERY_TIMEOUT
+) -> list[dict]:
+    """Discover PowerShades devices via UDP broadcast on all adapters."""
+    loop = asyncio.get_running_loop()
+    results: dict[str, dict] = {}
+    transports: list[asyncio.DatagramTransport] = []
+    packet = build_packet(OP_GET_SERIAL, sequence=0x01)
 
     adapters = await network.async_get_adapters(hass)
-    packet = build_get_serial_packet()
-    discovered = []
-    sockets = []
-
-    # Create sockets for each enabled network adapter
     for adapter in adapters:
         if not adapter["enabled"]:
             continue
         for ip_info in adapter["ipv4"]:
             try:
-                sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                sock.settimeout(1.0)  # Shorter timeout for individual reads
-                sock.bind((ip_info["address"], 0))
-                sockets.append(sock)
-                _LOGGER.debug(f"Bound socket to {ip_info['address']}")
-            except Exception as e:
-                _LOGGER.warning(
-                    f"Failed to bind socket to {ip_info['address']}: {e}")
+                transport, _protocol = await loop.create_datagram_endpoint(
+                    lambda: _DiscoveryProtocol(results),
+                    local_addr=(ip_info["address"], 0),
+                    allow_broadcast=True,
+                )
+            except OSError as err:
+                _LOGGER.debug("Could not bind discovery socket to %s: %s",
+                              ip_info["address"], err)
                 continue
+            transport.sendto(packet, (BROADCAST_IP, UDP_PORT))
+            transports.append(transport)
 
-    if not sockets:
+    if not transports:
         _LOGGER.warning("No network adapters available for discovery")
-        return discovered
+        return []
 
-    # Send broadcast packets
-    for sock in sockets:
-        try:
-            sock.sendto(packet, (BROADCAST_IP, UDP_PORT))
-            _LOGGER.debug(f"Sent discovery packet from {sock.getsockname()}")
-        except Exception as e:
-            _LOGGER.warning(f"Failed to send discovery packet: {e}")
-
-    # Listen for responses
-    start_time = time.time()
-    seen_devices = set()  # Track unique devices by IP
-
-    while time.time() - start_time < timeout:
-        for sock in sockets:
-            try:
-                data, addr = sock.recvfrom(256)
-                if addr[0] not in seen_devices:
-                    parsed = parse_serial_reply(data)
-                    if parsed:
-                        parsed['host'] = addr[0]
-                        discovered.append(parsed)
-                        seen_devices.add(addr[0])
-                        _LOGGER.info(f"Discovered device: {parsed['ip']} "
-                                     f"(Serial: {parsed['serial']})")
-            except socket.timeout:
-                continue
-            except Exception as e:
-                _LOGGER.debug(f"Error reading from socket: {e}")
-                continue
-
-    # Clean up sockets
-    for sock in sockets:
-        try:
-            sock.close()
-        except Exception:
-            pass
-
-    _LOGGER.info(f"Discovery complete. Found {len(discovered)} devices")
-    return discovered
-
-
-async def async_get_device_name(hass, ip_address, timeout=DEVICE_NAME_TIMEOUT):
-    """Get device name from a PowerShades device with retry logic."""
-    _LOGGER.debug(f"Getting device name from {ip_address}")
-
-    for attempt in range(2):  # Try twice
-        try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sock.settimeout(timeout)
-
-            # Try PoE Shade name command first (most common)
-            packet = build_get_shade_name_packet()
-            sock.sendto(packet, (ip_address, UDP_PORT))
-
-            try:
-                data, addr = sock.recvfrom(256)
-                parsed = parse_shade_name_reply(data)
-                if parsed and parsed['device_name']:
-                    sock.close()
-                    _LOGGER.debug(
-                        f"Got PoE shade name: {parsed['device_name']}")
-                    return parsed['device_name']
-            except socket.timeout:
-                pass
-
-            # If PoE shade name failed, try RF Gateway device name
-            packet = build_get_device_name_packet()
-            sock.sendto(packet, (ip_address, UDP_PORT))
-
-            try:
-                data, addr = sock.recvfrom(256)
-                parsed = parse_device_name_reply(data)
-                if parsed and parsed['device_name']:
-                    sock.close()
-                    _LOGGER.debug(
-                        f"Got RF gateway name: {parsed['device_name']}")
-                    return parsed['device_name']
-            except socket.timeout:
-                pass
-
-        except Exception as e:
-            _LOGGER.debug(f"Error getting device name from {ip_address} "
-                          f"(attempt {attempt + 1}): {e}")
-        finally:
-            try:
-                sock.close()
-            except Exception:
-                pass
-
-        if attempt < 1:  # Wait before retry
-            await asyncio.sleep(0.1)
-
-    _LOGGER.debug(f"Could not get device name from {ip_address}")
-    return None
-
-
-async def async_verify_device(hass, ip_address, timeout=2.0):
-    """Verify that a device is a PowerShades device by sending a serial request."""
     try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.settimeout(timeout)
+        await asyncio.sleep(timeout)
+    finally:
+        for transport in transports:
+            transport.close()
 
-        packet = build_get_serial_packet()
-        sock.sendto(packet, (ip_address, UDP_PORT))
+    devices = list(results.values())
+    _LOGGER.info("Discovery complete, found %d device(s)", len(devices))
+    return devices
 
-        try:
-            data, addr = sock.recvfrom(256)
-            parsed = parse_serial_reply(data)
-            if parsed and parsed['ip'] == ip_address:
-                sock.close()
-                return parsed
-        except socket.timeout:
-            pass
-        finally:
-            sock.close()
-    except Exception as e:
-        _LOGGER.debug(f"Error verifying device {ip_address}: {e}")
 
-    return None
+async def async_get_device_info(ip_address: str) -> dict:
+    """Probe a device for its serial number and name.
+
+    Raises PowerShadesTimeoutError if the device does not answer the
+    serial request — this is the test-before-configure probe.
+    """
+    connection = PowerShadesConnection(ip_address)
+    await connection.async_connect()
+    try:
+        reply = await connection.async_request(OP_GET_SERIAL, retries=1)
+        parsed = parse_serial_reply(reply)
+        if parsed is None:
+            raise PowerShadesTimeoutError(
+                f"Malformed serial reply from {ip_address}"
+            )
+
+        name = None
+        for op, payload, parser in (
+            (OP_GET_SHADE_NAME, GET_SHADE_NAME_PAYLOAD, parse_shade_name_reply),
+            (OP_GET_DEVICE_NAME, b"", parse_device_name_reply),
+        ):
+            try:
+                name_reply = await connection.async_request(
+                    op, payload, retries=0)
+            except PowerShadesTimeoutError:
+                continue
+            name = parser(name_reply)
+            if name:
+                break
+
+        return {"serial": parsed["serial"], "name": name}
+    finally:
+        connection.close()
