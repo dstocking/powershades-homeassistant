@@ -14,9 +14,10 @@ rules:
   common-modules: done
   comment: |
     coordinator.py, protocol.py, udp.py and discovery.py split out the shared logic cleanly
-  config-flow-test-coverage: todo
+  config-flow-test-coverage: done
   comment: |
-    no tests directory exists yet
+    tests/components/powershades/test_config_flow.py covers manual entry (success, cannot_connect,
+    invalid_ip, duplicate), active discovery, and DHCP discovery
   config-flow: done
   comment: |
     manual entry, active discovery, dhcp discovery and reconfiguration via rediscovery all implemented
@@ -75,7 +76,8 @@ rules:
     the device has no concept of authentication, nothing to re-authenticate
   test-coverage: todo
   comment: |
-    no tests directory exists yet
+    config flow has full test coverage; coordinator, protocol and platform tests are still
+    needed for full silver coverage
 
   # Gold
   devices: done
