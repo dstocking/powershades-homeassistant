@@ -85,6 +85,11 @@ def build_set_limit_payload(limit_type: int) -> bytes:
     return struct.pack("<H", limit_type)
 
 
+def build_set_name_payload(name: str) -> bytes:
+    """Build the payload for a Set PoE Shade Name packet."""
+    return b"\x01" + name.encode("ascii")[:50].ljust(50, b"\x00")
+
+
 @dataclass(frozen=True)
 class PacketHeader:
     """Parsed packet header."""
@@ -105,16 +110,37 @@ def parse_header(data: bytes) -> PacketHeader | None:
     return PacketHeader(length, crc, op, sequence, channel)
 
 
+def verify_packet(data: bytes) -> bool:
+    """Validate a packet's length field and CRC.
+
+    The CRC covers Op + Sequence + Channel + Reserved + Payload for
+    replies as well as commands (verified against real device replies).
+    """
+    header = parse_header(data)
+    if header is None or len(data) < HEADER_SIZE + header.length:
+        return False
+    return crc16_xmodem(data[4:HEADER_SIZE + header.length]) == header.crc
+
+
 def parse_serial_reply(data: bytes) -> dict | None:
-    """Parse a Get Serial Number reply packet."""
+    """Parse a Get Serial Number reply packet.
+
+    Payload layout (after the 8-byte header): Model(1) Pad1(1) Pad2(1)
+    Direction(1) SerialLow(4) SerialHigh(4) DhcpEnabled(1) IP(4)
+    Subnet(4) Gateway(4) Internal(50).
+    """
     if len(data) < 24:
         return None
     model = data[8]
+    direction = data[11]
     serial_low = struct.unpack("<I", data[12:16])[0]
     serial_high = struct.unpack("<I", data[16:20])[0]
+    dhcp_enabled = bool(data[20])
     return {
         "model": model,
+        "direction": direction,
         "serial": (serial_high << 32) | serial_low,
+        "dhcp_enabled": dhcp_enabled,
     }
 
 

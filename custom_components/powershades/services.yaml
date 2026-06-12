@@ -81,3 +81,52 @@ step_down:
         entity:
           domain: cover
           integration: powershades
+
+jog_up:
+  name: Jog Up
+  description: Move the shade up continuously until it reaches a limit or is stopped (useful when setting limits)
+  fields:
+    entity_id:
+      name: Entity
+      description: The PowerShades cover entity to jog
+      example: "cover.powershade_living_room"
+      required: true
+      selector:
+        entity:
+          domain: cover
+          integration: powershades
+
+jog_down:
+  name: Jog Down
+  description: Move the shade down continuously until it reaches a limit or is stopped (useful when setting limits)
+  fields:
+    entity_id:
+      name: Entity
+      description: The PowerShades cover entity to jog
+      example: "cover.powershade_living_room"
+      required: true
+      selector:
+        entity:
+          domain: cover
+          integration: powershades
+
+set_shade_name:
+  name: Set Shade Name
+  description: Rename a PoE shade on the device itself (1-50 ASCII characters); the Home Assistant device name is updated to match
+  fields:
+    entity_id:
+      name: Entity
+      description: The PowerShades cover entity to rename
+      example: "cover.powershade_living_room"
+      required: true
+      selector:
+        entity:
+          domain: cover
+          integration: powershades
+    name:
+      name: Name
+      description: The new shade name
+      example: "Living Room Left"
+      required: true
+      selector:
+        text:

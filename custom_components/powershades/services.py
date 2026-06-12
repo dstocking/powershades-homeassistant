@@ -58,6 +58,19 @@ def async_setup_services(hass: HomeAssistant) -> None:
     async def step_down(call: ServiceCall) -> None:
         await _get_coordinator(hass, call).async_step_down()
 
+    async def jog_up(call: ServiceCall) -> None:
+        await _get_coordinator(hass, call).async_jog_up()
+
+    async def jog_down(call: ServiceCall) -> None:
+        await _get_coordinator(hass, call).async_jog_down()
+
+    async def set_shade_name(call: ServiceCall) -> None:
+        name = call.data["name"].strip()
+        if not name or len(name) > 50 or not name.isascii():
+            raise ServiceValidationError(
+                "Shade name must be 1-50 ASCII characters")
+        await _get_coordinator(hass, call).async_set_shade_name(name)
+
     for name, handler in (
         ("toggle_shade", toggle_shade),
         ("set_upper_limit", set_upper_limit),
@@ -65,6 +78,12 @@ def async_setup_services(hass: HomeAssistant) -> None:
         ("clear_limits", clear_limits),
         ("step_up", step_up),
         ("step_down", step_down),
+        ("jog_up", jog_up),
+        ("jog_down", jog_down),
     ):
         hass.services.async_register(
             DOMAIN, name, handler, schema=SERVICE_SCHEMA)
+
+    hass.services.async_register(
+        DOMAIN, "set_shade_name", set_shade_name,
+        schema=SERVICE_SCHEMA.extend({vol.Required("name"): cv.string}))
