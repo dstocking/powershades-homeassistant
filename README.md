@@ -10,6 +10,17 @@ A Home Assistant custom integration for controlling PowerShades motorized blinds
 - **Config Flow**: Easy setup through Home Assistant's UI
 - **Local Control**: No cloud dependencies, works entirely locally
 
+## Prerequisites
+
+It is unknown if UDP communication is enabled by default on every PowerShades controller. If the integration's discovery doesn't find your shade and manual entry with its IP address gives a "cannot connect" error, you may need to enable UDP on the device yourself. If you figure out how to enable UDP on a shade that didn't have it on by default, please open an issue and explain how, so it can be documented here.
+
+### Finding your shade's IP address
+
+The integration's discovery step will usually find shades on your network automatically. If you need to enter an IP manually:
+
+- **Via the PowerShades App (Recommended)**: Open the official PowerShades mobile app, navigate to your desired shade, select Enable Configuration, and confirm the prompt. Scroll down to view the assigned IP address.
+- **Via Your Router's DHCP Client List**: Log into your network router's administration panel and check the connected devices list. Look for a device manufactured by "Wideband Labs LLC" — this is likely your PowerShades device.
+
 ## Installation
 
 ### HACS Installation
@@ -72,6 +83,49 @@ PowerShades devices send replies and asynchronous move feedback only to the **la
 
 Battery percentage and battery voltage are available as diagnostic sensor entities (disabled by default — enable them from the device page). Note: in versions before 0.2.0 these values were exposed as attributes on the cover entity; templates referencing `battery_percentage`/`battery_voltage_mv` cover attributes should switch to the sensors.
 
+### Data Updates
+
+The shade pushes its status to Home Assistant in real time whenever Home Assistant is the one controlling it ("UDP master"). On top of that, Home Assistant polls the shade every 10 seconds (every 5 seconds while the position is unknown) so that changes made by another controller — such as the PowerShades app or a Control4 system — are also picked up.
+
+### Automation Examples
+
+Open a shade in the morning:
+
+```yaml
+alias: Open bedroom shade
+description: ""
+triggers:
+  - trigger: time
+    at: "07:00:00"
+conditions: []
+actions:
+  - action: cover.open_cover
+    target:
+      entity_id: cover.bedroom_shade
+mode: single
+```
+
+Close shades at dusk:
+
+```yaml
+alias: Close shades at dusk
+description: ""
+triggers:
+  - trigger: state
+    entity_id:
+      - sensor.sun_next_dusk
+conditions:
+  - condition: state
+    entity_id: cover.bedroom_shade
+    state: "open"
+actions:
+  - action: cover.close_cover
+    target:
+      entity_id:
+        - cover.bedroom_shade
+mode: single
+```
+
 ## Requirements
 
 - Home Assistant 2023.8.0 or newer
@@ -101,6 +155,16 @@ logger:
   logs:
     custom_components.powershades: debug
 ```
+
+## Removing This Integration
+
+Removing this integration is the same as most HACS integrations:
+
+- Go to **Settings** → **Devices & Services** and select the PowerShades integration card.
+- From the list of devices, select the PowerShades entry.
+- Next to the entry, select the three-dot menu, then select **Delete**.
+- If installed through HACS, go to HACS, select the three-dot menu for this integration, then select **Remove**.
+- If you did a manual installation, delete the `custom_components/powershades` folder, then restart Home Assistant to clear the cache.
 
 ## Development
 
