@@ -35,6 +35,7 @@ class PowerShadesConfigFlow(ConfigFlow, domain=DOMAIN):
         self._discovered_serial: int | None = None
         self._discovered_name: str | None = None
         self._discovered_mac: str | None = None
+        self._discovered_model: int | None = None
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -99,6 +100,7 @@ class PowerShadesConfigFlow(ConfigFlow, domain=DOMAIN):
         self, discovery_info: dict[str, Any]
     ) -> ConfigFlowResult:
         """Handle a device found by background broadcast discovery."""
+        self._discovered_model = discovery_info.get("model")
         return await self._async_handle_discovery(
             discovery_info["ip"], discovery_info["serial"])
 
@@ -115,6 +117,7 @@ class PowerShadesConfigFlow(ConfigFlow, domain=DOMAIN):
         except PowerShadesTimeoutError:
             return self.async_abort(reason="cannot_connect")
         self._discovered_name = info["name"]
+        self._discovered_model = info["model"]
         return await self._async_handle_discovery(ip, info["serial"])
 
     async def _async_handle_discovery(
@@ -137,6 +140,8 @@ class PowerShadesConfigFlow(ConfigFlow, domain=DOMAIN):
             try:
                 info = await async_get_device_info(ip)
                 self._discovered_name = info["name"]
+                if self._discovered_model is None:
+                    self._discovered_model = info["model"]
             except PowerShadesTimeoutError:
                 self._discovered_name = None
 
@@ -160,6 +165,7 @@ class PowerShadesConfigFlow(ConfigFlow, domain=DOMAIN):
                     "serial": self._discovered_serial,
                     "name": name,
                     "mac": self._discovered_mac,
+                    "model": self._discovered_model,
                 },
             )
 
@@ -192,5 +198,10 @@ class PowerShadesConfigFlow(ConfigFlow, domain=DOMAIN):
         title = f"PowerShade {name}" if name else f"PowerShade {ip}"
         return self.async_create_entry(
             title=title,
-            data={"ip": ip, "serial": info["serial"], "name": name},
+            data={
+                "ip": ip,
+                "serial": info["serial"],
+                "name": name,
+                "model": info["model"],
+            },
         )

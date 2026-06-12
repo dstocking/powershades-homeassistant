@@ -27,6 +27,7 @@ from .protocol import (
     parse_serial_reply,
     parse_shade_name_reply,
     parse_status_reply,
+    verify_packet,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -43,15 +44,18 @@ class _PowerShadesProtocol(asyncio.DatagramProtocol):
 
     def __init__(self, on_status: Callable[[StatusReply], None]) -> None:
         self._on_status = on_status
-        self.pending: dict[int, asyncio.Future[bytes]] = {}
+        # Keyed by (op, sequence): replies echo the request's sequence
+        self.pending: dict[tuple[int, int], asyncio.Future[bytes]] = {}
 
     def datagram_received(self, data: bytes, addr) -> None:
-        header = parse_header(data)
-        if header is None:
+        if not verify_packet(data):
+            _LOGGER.debug("Dropping invalid packet from %s: %s",
+                          addr[0], data.hex())
             return
-        _LOGGER.debug("Received op=0x%02X from %s: %s",
-                      header.op, addr[0], data.hex())
-        fut = self.pending.pop(header.op, None)
+        header = parse_header(data)
+        _LOGGER.debug("Received op=0x%02X seq=%d from %s: %s",
+                      header.op, header.sequence, addr[0], data.hex())
+        fut = self.pending.pop((header.op, header.sequence), None)
         if fut is not None and not fut.done():
             fut.set_result(data)
             return
@@ -99,15 +103,16 @@ class PowerShadesConnection:
             local_addr=("0.0.0.0", 0),
         )
 
-    def send(self, op: int, payload: bytes = b"") -> None:
-        """Send a fire-and-forget command packet."""
-        if self._transport is None:
-            raise PowerShadesTimeoutError("Connection is closed")
-        self._sequence = (self._sequence + 1) % 256
-        packet = build_packet(op, self._sequence, payload=payload)
+    def _send(self, op: int, sequence: int, payload: bytes = b"") -> None:
+        """Send one packet."""
+        packet = build_packet(op, sequence, payload=payload)
         self._transport.sendto(packet, (self._host, UDP_PORT))
-        _LOGGER.debug("Sent op=0x%02X to %s:%d: %s",
-                      op, self._host, UDP_PORT, packet.hex())
+        _LOGGER.debug("Sent op=0x%02X seq=%d to %s:%d: %s",
+                      op, sequence, self._host, UDP_PORT, packet.hex())
+
+    def _next_sequence(self) -> int:
+        self._sequence = (self._sequence + 1) % 256
+        return self._sequence
 
     async def async_request(
         self,
@@ -116,22 +121,28 @@ class PowerShadesConnection:
         timeout: float = REQUEST_TIMEOUT,
         retries: int = REQUEST_RETRIES,
     ) -> bytes:
-        """Send a packet and wait for a reply with the same opcode."""
-        if self._protocol is None:
+        """Send a packet and wait for the reply echoing its op and sequence."""
+        if self._protocol is None or self._transport is None:
             raise PowerShadesTimeoutError("Connection is closed")
         async with self._lock:
+            # Each attempt uses a fresh sequence ("adjacent query must
+            # be different"), so a late reply to an earlier attempt
+            # can't satisfy a newer one.
             for _attempt in range(retries + 1):
+                sequence = self._next_sequence()
+                key = (op, sequence)
                 fut: asyncio.Future[bytes] = (
                     asyncio.get_running_loop().create_future()
                 )
-                self._protocol.pending[op] = fut
-                self.send(op, payload)
+                self._protocol.pending[key] = fut
+                self._send(op, sequence, payload)
                 try:
                     return await asyncio.wait_for(fut, timeout)
                 except TimeoutError:
                     pass
                 finally:
-                    self._protocol.pending.pop(op, None)
+                    if self._protocol is not None:
+                        self._protocol.pending.pop(key, None)
             raise PowerShadesTimeoutError(
                 f"No reply to op 0x{op:02X} from {self._host}"
             )
@@ -151,6 +162,9 @@ class _DiscoveryProtocol(asyncio.DatagramProtocol):
         self._results = results
 
     def datagram_received(self, data: bytes, addr) -> None:
+        if not verify_packet(data):
+            _LOGGER.debug("Dropping invalid discovery reply from %s", addr[0])
+            return
         parsed = parse_serial_reply(data)
         # Key by the packet source address — it is authoritative, the
         # IP embedded in the reply payload is not.
@@ -239,6 +253,10 @@ async def async_get_device_info(ip_address: str) -> dict:
             if name:
                 break
 
-        return {"serial": parsed["serial"], "name": name}
+        return {
+            "serial": parsed["serial"],
+            "name": name,
+            "model": parsed["model"],
+        }
     finally:
         connection.close()

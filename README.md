@@ -57,7 +57,16 @@ Once configured, your PowerShades will appear as covers in Home Assistant. You c
 Each shade also gets buttons for:
 
 - **Toggle Shade**: Open/close based on current position, or stop if moving
-- **Set Upper/Lower Limit, Clear Limits, Step Up/Down**: Limit calibration tools (under the device's Configuration section)
+- **Identify**: Makes the shade motor wiggle so you can tell which physical shade this is (under Diagnostic)
+- **Jog Up/Down, Set Upper/Lower Limit, Clear Limits, Step Up/Down**: Limit calibration tools (under the device's Configuration section). Typical workflow: jog near the desired position, step to fine-tune, then set the limit.
+
+### Services
+
+Besides the standard cover services, the integration provides `powershades.toggle_shade`, `powershades.jog_up`/`jog_down`, `powershades.step_up`/`step_down`, `powershades.set_upper_limit`/`set_lower_limit`/`clear_limits`, and `powershades.set_shade_name` (renames the shade on the device itself; the Home Assistant device name follows).
+
+### Known Limitations
+
+PowerShades devices send replies and asynchronous move feedback only to the **last controller that sent them a command** ("UDP master"). Avoid running PowerShades Config.NET or another driver at the same time as Home Assistant — control still works, but live position feedback may intermittently lag until the next poll.
 
 ### Diagnostic Sensors
 

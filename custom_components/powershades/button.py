@@ -5,7 +5,11 @@ import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
-from homeassistant.components.button import ButtonEntity, ButtonEntityDescription
+from homeassistant.components.button import (
+    ButtonDeviceClass,
+    ButtonEntity,
+    ButtonEntityDescription,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -32,6 +36,27 @@ BUTTONS: tuple[PowerShadesButtonDescription, ...] = (
         name="Toggle Shade",
         icon="mdi:swap-vertical",
         press_fn=lambda coordinator: coordinator.async_toggle(),
+    ),
+    PowerShadesButtonDescription(
+        key="identify",
+        name="Identify",
+        device_class=ButtonDeviceClass.IDENTIFY,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        press_fn=lambda coordinator: coordinator.async_identify(),
+    ),
+    PowerShadesButtonDescription(
+        key="jog_up",
+        name="Jog Up",
+        icon="mdi:chevron-double-up",
+        entity_category=EntityCategory.CONFIG,
+        press_fn=lambda coordinator: coordinator.async_jog_up(),
+    ),
+    PowerShadesButtonDescription(
+        key="jog_down",
+        name="Jog Down",
+        icon="mdi:chevron-double-down",
+        entity_category=EntityCategory.CONFIG,
+        press_fn=lambda coordinator: coordinator.async_jog_down(),
     ),
     PowerShadesButtonDescription(
         key="set_upper_limit",

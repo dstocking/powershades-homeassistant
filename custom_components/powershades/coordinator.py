@@ -7,6 +7,8 @@ from datetime import timedelta
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, DeviceInfo
 from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
@@ -17,19 +19,27 @@ from .const import (
     DOMAIN,
     LIMIT_LOWER,
     LIMIT_UPPER,
+    MODEL_NAMES,
     OP_CLEAR_LIMITS,
     OP_GET_STATUS,
+    OP_INDICATE,
+    OP_JOG_DOWN,
     OP_JOG_STOP,
+    OP_JOG_UP,
     OP_SET_LIMIT,
     OP_SET_POSITION,
     OP_STEP_DOWN,
     OP_STEP_UP,
+    OP_GET_SHADE_NAME,
 )
 from .protocol import (
+    GET_SHADE_NAME_PAYLOAD,
     StatusReply,
     battery_percentage,
     build_set_limit_payload,
+    build_set_name_payload,
     build_set_position_payload,
+    parse_shade_name_reply,
     parse_status_reply,
 )
 from .udp import PowerShadesConnection, PowerShadesTimeoutError
@@ -70,6 +80,7 @@ class PowerShadesCoordinator(DataUpdateCoordinator[PowerShadesData]):
         self.serial_number = entry.data.get("serial")
         self.device_name = entry.data.get("name")
         self.mac_address: str | None = entry.data.get("mac")
+        self.model: int | None = entry.data.get("model")
         self._target_position: int | None = None
         super().__init__(
             hass,
@@ -101,7 +112,7 @@ class PowerShadesCoordinator(DataUpdateCoordinator[PowerShadesData]):
             ),
             name=name,
             manufacturer="PowerShades",
-            model="Motorized Window Cover",
+            model=MODEL_NAMES.get(self.model, "Motorized Window Cover"),
             serial_number=str(
                 self.serial_number) if self.serial_number else None,
         )
@@ -151,17 +162,35 @@ class PowerShadesCoordinator(DataUpdateCoordinator[PowerShadesData]):
             self.async_set_updated_data(
                 replace(self.data, target_position=position))
 
+    async def _async_command(self, op: int, payload: bytes = b"") -> None:
+        """Send a command and await the device's echo reply (ACK).
+
+        Every command is acknowledged with a reply carrying the same op
+        and sequence; the reply payload itself is meaningless (PoE
+        shades may send a generic reply packet).
+        """
+        try:
+            await self.connection.async_request(op, payload)
+        except PowerShadesTimeoutError as err:
+            raise HomeAssistantError(
+                f"Shade at {self.ip_address} did not acknowledge the command"
+            ) from err
+
     async def async_set_position(self, position: int) -> None:
         """Move the shade to a position (0=closed, 100=open)."""
         self._set_target(position)
-        self.connection.send(
-            OP_SET_POSITION, build_set_position_payload(position))
+        try:
+            await self._async_command(
+                OP_SET_POSITION, build_set_position_payload(position))
+        except HomeAssistantError:
+            self._set_target(None)
+            raise
         await self.async_request_refresh()
 
     async def async_stop(self) -> None:
         """Stop shade movement."""
         self._set_target(None)
-        self.connection.send(OP_JOG_STOP)
+        await self._async_command(OP_JOG_STOP)
         await self.async_request_refresh()
 
     async def async_toggle(self) -> None:
@@ -178,25 +207,73 @@ class PowerShadesCoordinator(DataUpdateCoordinator[PowerShadesData]):
         else:
             await self.async_set_position(100)
 
+    async def async_jog_up(self) -> None:
+        """Jog the shade up until it reaches a limit or is stopped."""
+        await self._async_command(OP_JOG_UP)
+        await self.async_request_refresh()
+
+    async def async_jog_down(self) -> None:
+        """Jog the shade down until it reaches a limit or is stopped."""
+        await self._async_command(OP_JOG_DOWN)
+        await self.async_request_refresh()
+
+    async def async_identify(self) -> None:
+        """Make the shade motor indicate (wiggle) to identify it."""
+        await self._async_command(OP_INDICATE)
+
     async def async_set_upper_limit(self) -> None:
         """Set the upper limit (fully open position)."""
-        self.connection.send(OP_SET_LIMIT, build_set_limit_payload(LIMIT_UPPER))
-        _LOGGER.info("Setting upper limit for %s", self.ip_address)
+        await self._async_command(
+            OP_SET_LIMIT, build_set_limit_payload(LIMIT_UPPER))
+        _LOGGER.info("Set upper limit for %s", self.ip_address)
 
     async def async_set_lower_limit(self) -> None:
         """Set the lower limit (fully closed position)."""
-        self.connection.send(OP_SET_LIMIT, build_set_limit_payload(LIMIT_LOWER))
-        _LOGGER.info("Setting lower limit for %s", self.ip_address)
+        await self._async_command(
+            OP_SET_LIMIT, build_set_limit_payload(LIMIT_LOWER))
+        _LOGGER.info("Set lower limit for %s", self.ip_address)
 
     async def async_clear_limits(self) -> None:
         """Clear both limits."""
-        self.connection.send(OP_CLEAR_LIMITS)
-        _LOGGER.info("Clearing limits for %s", self.ip_address)
+        await self._async_command(OP_CLEAR_LIMITS)
+        _LOGGER.info("Cleared limits for %s", self.ip_address)
 
     async def async_step_up(self) -> None:
         """Move the motor up one step (for trimming limits)."""
-        self.connection.send(OP_STEP_UP)
+        await self._async_command(OP_STEP_UP)
 
     async def async_step_down(self) -> None:
         """Move the motor down one step (for trimming limits)."""
-        self.connection.send(OP_STEP_DOWN)
+        await self._async_command(OP_STEP_DOWN)
+
+    async def async_set_shade_name(self, name: str) -> None:
+        """Rename the shade on the device and sync the new name into HA."""
+        await self._async_command(
+            OP_GET_SHADE_NAME, build_set_name_payload(name))
+
+        # Read the name back to confirm the device stored it
+        try:
+            reply = await self.connection.async_request(
+                OP_GET_SHADE_NAME, GET_SHADE_NAME_PAYLOAD)
+        except PowerShadesTimeoutError as err:
+            raise HomeAssistantError(
+                f"Shade at {self.ip_address} did not confirm its new name"
+            ) from err
+        confirmed = parse_shade_name_reply(reply)
+        if not confirmed:
+            raise HomeAssistantError(
+                f"Shade at {self.ip_address} returned an empty name")
+
+        self.device_name = confirmed
+        self.hass.config_entries.async_update_entry(
+            self.config_entry,
+            data={**self.config_entry.data, "name": confirmed},
+            title=f"PowerShade {confirmed}",
+        )
+        device_registry = dr.async_get(self.hass)
+        device = device_registry.async_get_device(
+            identifiers=self.device_info["identifiers"])
+        if device is not None:
+            device_registry.async_update_device(
+                device.id, name=f"PowerShade {confirmed}")
+        _LOGGER.info("Renamed shade %s to %r", self.ip_address, confirmed)
