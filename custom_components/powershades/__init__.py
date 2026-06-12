@@ -9,6 +9,7 @@ from homeassistant.helpers.typing import ConfigType
 
 from .const import DOMAIN
 from .coordinator import PowerShadesConfigEntry, PowerShadesCoordinator
+from .discovery import async_start_discovery
 from .services import async_setup_services
 from .udp import PowerShadesConnection
 
@@ -20,6 +21,7 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the PowerShades component."""
     async_setup_services(hass)
+    async_start_discovery(hass)
     return True
 
 

@@ -8,6 +8,7 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
 
 from .const import DOMAIN
 from .udp import (
@@ -29,6 +30,9 @@ class PowerShadesConfigFlow(ConfigFlow, domain=DOMAIN):
     def __init__(self) -> None:
         """Initialize the config flow."""
         self._discovered: dict[str, dict] = {}
+        self._discovered_ip: str | None = None
+        self._discovered_serial: int | None = None
+        self._discovered_name: str | None = None
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -89,10 +93,84 @@ class PowerShadesConfigFlow(ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
+    async def async_step_integration_discovery(
+        self, discovery_info: dict[str, Any]
+    ) -> ConfigFlowResult:
+        """Handle a device found by background broadcast discovery."""
+        return await self._async_handle_discovery(
+            discovery_info["ip"], discovery_info["serial"])
+
+    async def async_step_dhcp(
+        self, discovery_info: DhcpServiceInfo
+    ) -> ConfigFlowResult:
+        """Handle a device found by DHCP discovery."""
+        ip = discovery_info.ip
+        # The DHCP matcher is a heuristic (MAC prefix + hostname); verify
+        # the device actually speaks the PowerShades protocol.
+        try:
+            info = await async_get_device_info(ip)
+        except PowerShadesTimeoutError:
+            return self.async_abort(reason="cannot_connect")
+        self._discovered_name = info["name"]
+        return await self._async_handle_discovery(ip, info["serial"])
+
+    async def _async_handle_discovery(
+        self, ip: str, serial: int
+    ) -> ConfigFlowResult:
+        """Common handling for discovered devices."""
+        # Entries created before serials were stored match by IP only —
+        # don't offer a duplicate of an already-configured shade.
+        self._async_abort_entries_match({"ip": ip})
+
+        await self.async_set_unique_id(str(serial))
+        self._abort_if_unique_id_configured(updates={"ip": ip})
+
+        self._discovered_ip = ip
+        self._discovered_serial = serial
+        if self._discovered_name is None:
+            try:
+                info = await async_get_device_info(ip)
+                self._discovered_name = info["name"]
+            except PowerShadesTimeoutError:
+                self._discovered_name = None
+
+        self.context["title_placeholders"] = {
+            "name": self._discovered_name or ip,
+        }
+        return await self.async_step_discovery_confirm()
+
+    async def async_step_discovery_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Confirm setup of a discovered device."""
+        if user_input is not None:
+            ip = self._discovered_ip
+            name = self._discovered_name
+            title = f"PowerShade {name}" if name else f"PowerShade {ip}"
+            return self.async_create_entry(
+                title=title,
+                data={
+                    "ip": ip,
+                    "serial": self._discovered_serial,
+                    "name": name,
+                },
+            )
+
+        self._set_confirm_only()
+        return self.async_show_form(
+            step_id="discovery_confirm",
+            description_placeholders={
+                "name": self._discovered_name or "PowerShades device",
+                "ip": self._discovered_ip or "",
+            },
+        )
+
     async def _async_validate_and_create(
         self, ip: str, errors: dict[str, str]
     ) -> ConfigFlowResult | None:
         """Probe the device and create the entry, or record an error."""
+        self._async_abort_entries_match({"ip": ip})
+
         try:
             info = await async_get_device_info(ip)
         except PowerShadesTimeoutError:

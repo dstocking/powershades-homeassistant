@@ -8,6 +8,12 @@
     "dependencies": [
         "network"
     ],
+    "dhcp": [
+        {
+            "hostname": "ps-*",
+            "macaddress": "D83AF5*"
+        }
+    ],
     "documentation": "https://github.com/dstocking/powershades-homeassistant",
     "integration_type": "device",
     "iot_class": "local_polling",
