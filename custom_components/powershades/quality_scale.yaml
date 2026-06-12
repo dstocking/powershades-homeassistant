@@ -102,9 +102,9 @@ rules:
   docs-supported-devices: done
   docs-supported-functions: done
   docs-troubleshooting: done
-  docs-use-cases: todo
+  docs-use-cases: done
   comment: |
-    no use-case examples (e.g. automations, voice control) in the rewritten README
+    Added some automation examples
   dynamic-devices: exempt
   comment: |
     one device per config entry
