@@ -36,7 +36,7 @@ This integration can be installed via HACS as a custom repository:
 7. Click **Download**
 8. Restart Home Assistant
 
-**Note**: This integration uses semantic versioning with proper GitHub releases. The current version is `v0.1.0`.
+**Note**: This integration uses semantic versioning with proper GitHub releases. See the [Releases](https://github.com/dstocking/powershades-homeassistant/releases) page for the latest version.
 
 ### Manual Installation
 
@@ -141,7 +141,7 @@ This integration supports PowerShades controllers that communicate via UDP proto
 
 If you encounter errors when installing via HACS:
 
-1. **Version Error**: Ensure the repository has a proper release tag (currently `v0.1.0`)
+1. **Version Error**: Ensure the repository has a proper release tag (see the [Releases](https://github.com/dstocking/powershades-homeassistant/releases) page)
 2. **Repository Not Found**: Verify the repository URL is correct and the repository is public
 3. **Download Failed**: Try refreshing HACS and clearing the cache
 
@@ -187,7 +187,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Support
 
-For issues and feature requests, please use the [GitHub Issues](https://github.com/yourusername/powershades-homeassistant/issues) page.
+For issues and feature requests, please use the [GitHub Issues](https://github.com/dstocking/powershades-homeassistant/issues) page.
 
 ## Changelog
 
