@@ -44,8 +44,11 @@ class _PowerShadesProtocol(asyncio.DatagramProtocol):
 
     def __init__(self, on_status: Callable[[StatusReply], None]) -> None:
         self._on_status = on_status
-        # Keyed by (op, sequence): replies echo the request's sequence
-        self.pending: dict[tuple[int, int], asyncio.Future[bytes]] = {}
+        # Keyed by op alone: real shades do not reliably echo the
+        # request's sequence (Get Status always replies sequence 1,
+        # whatever was sent). Requests on a connection are serialized,
+        # so at most one request per op is pending at a time.
+        self.pending: dict[int, asyncio.Future[bytes]] = {}
 
     def datagram_received(self, data: bytes, addr) -> None:
         if not verify_packet(data):
@@ -55,7 +58,7 @@ class _PowerShadesProtocol(asyncio.DatagramProtocol):
         header = parse_header(data)
         _LOGGER.debug("Received op=0x%02X seq=%d from %s: %s",
                       header.op, header.sequence, addr[0], data.hex())
-        fut = self.pending.pop((header.op, header.sequence), None)
+        fut = self.pending.pop(header.op, None)
         if fut is not None and not fut.done():
             fut.set_result(data)
             return
@@ -125,16 +128,15 @@ class PowerShadesConnection:
         if self._protocol is None or self._transport is None:
             raise PowerShadesTimeoutError("Connection is closed")
         async with self._lock:
-            # Each attempt uses a fresh sequence ("adjacent query must
-            # be different"), so a late reply to an earlier attempt
-            # can't satisfy a newer one.
+            # Each attempt still sends a fresh sequence ("adjacent
+            # query must be different"), but replies are matched by op
+            # only — the device does not echo the sequence on all ops.
             for _attempt in range(retries + 1):
                 sequence = self._next_sequence()
-                key = (op, sequence)
                 fut: asyncio.Future[bytes] = (
                     asyncio.get_running_loop().create_future()
                 )
-                self._protocol.pending[key] = fut
+                self._protocol.pending[op] = fut
                 self._send(op, sequence, payload)
                 try:
                     return await asyncio.wait_for(fut, timeout)
@@ -142,7 +144,7 @@ class PowerShadesConnection:
                     pass
                 finally:
                     if self._protocol is not None:
-                        self._protocol.pending.pop(key, None)
+                        self._protocol.pending.pop(op, None)
             raise PowerShadesTimeoutError(
                 f"No reply to op 0x{op:02X} from {self._host}"
             )
