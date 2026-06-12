@@ -1,4 +1,5 @@
 """PowerShades button platform."""
+
 from __future__ import annotations
 
 import logging
@@ -104,14 +105,11 @@ async def async_setup_entry(
     """Set up PowerShades buttons from a config entry."""
     coordinator = entry.runtime_data
     async_add_entities(
-        PowerShadesButton(coordinator, description)
-        for description in BUTTONS
+        PowerShadesButton(coordinator, description) for description in BUTTONS
     )
 
 
-class PowerShadesButton(
-    CoordinatorEntity[PowerShadesCoordinator], ButtonEntity
-):
+class PowerShadesButton(CoordinatorEntity[PowerShadesCoordinator], ButtonEntity):
     """PowerShades button entity."""
 
     _attr_has_entity_name = True
@@ -130,9 +128,7 @@ class PowerShadesButton(
                 f"{DOMAIN}_{coordinator.serial_number}_{description.key}"
             )
         else:
-            self._attr_unique_id = (
-                f"{DOMAIN}_{coordinator.entry_id}_{description.key}"
-            )
+            self._attr_unique_id = f"{DOMAIN}_{coordinator.entry_id}_{description.key}"
         self._attr_device_info = coordinator.device_info
 
     async def async_press(self) -> None:

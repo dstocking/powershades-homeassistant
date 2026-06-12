@@ -1,4 +1,5 @@
 """PowerShades cover platform."""
+
 from __future__ import annotations
 
 import logging
@@ -31,9 +32,7 @@ async def async_setup_entry(
     async_add_entities([PowerShadesCover(entry.runtime_data)])
 
 
-class PowerShadesCover(
-    CoordinatorEntity[PowerShadesCoordinator], CoverEntity
-):
+class PowerShadesCover(CoordinatorEntity[PowerShadesCoordinator], CoverEntity):
     """PowerShades cover entity."""
 
     _attr_has_entity_name = True

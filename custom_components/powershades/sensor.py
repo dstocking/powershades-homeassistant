@@ -1,4 +1,5 @@
 """PowerShades sensor platform."""
+
 from __future__ import annotations
 
 import logging
@@ -66,14 +67,11 @@ async def async_setup_entry(
     """Set up PowerShades sensors from a config entry."""
     coordinator = entry.runtime_data
     async_add_entities(
-        PowerShadesSensor(coordinator, description)
-        for description in SENSORS
+        PowerShadesSensor(coordinator, description) for description in SENSORS
     )
 
 
-class PowerShadesSensor(
-    CoordinatorEntity[PowerShadesCoordinator], SensorEntity
-):
+class PowerShadesSensor(CoordinatorEntity[PowerShadesCoordinator], SensorEntity):
     """PowerShades diagnostic sensor."""
 
     _attr_has_entity_name = True
@@ -92,9 +90,7 @@ class PowerShadesSensor(
                 f"{DOMAIN}_{coordinator.serial_number}_{description.key}"
             )
         else:
-            self._attr_unique_id = (
-                f"{DOMAIN}_{coordinator.entry_id}_{description.key}"
-            )
+            self._attr_unique_id = f"{DOMAIN}_{coordinator.entry_id}_{description.key}"
         self._attr_device_info = coordinator.device_info
 
     @property

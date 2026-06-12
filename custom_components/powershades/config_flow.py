@@ -1,4 +1,5 @@
 """Config flow for the PowerShades integration."""
+
 from __future__ import annotations
 
 import ipaddress
@@ -102,7 +103,8 @@ class PowerShadesConfigFlow(ConfigFlow, domain=DOMAIN):
         """Handle a device found by background broadcast discovery."""
         self._discovered_model = discovery_info.get("model")
         return await self._async_handle_discovery(
-            discovery_info["ip"], discovery_info["serial"])
+            discovery_info["ip"], discovery_info["serial"]
+        )
 
     async def async_step_dhcp(
         self, discovery_info: DhcpServiceInfo
@@ -120,9 +122,7 @@ class PowerShadesConfigFlow(ConfigFlow, domain=DOMAIN):
         self._discovered_model = info["model"]
         return await self._async_handle_discovery(ip, info["serial"])
 
-    async def _async_handle_discovery(
-        self, ip: str, serial: int
-    ) -> ConfigFlowResult:
+    async def _async_handle_discovery(self, ip: str, serial: int) -> ConfigFlowResult:
         """Common handling for discovered devices."""
         # Entries created before serials were stored match by IP only —
         # don't offer a duplicate of an already-configured shade.

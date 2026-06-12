@@ -1,4 +1,5 @@
 """The PowerShades integration."""
+
 from __future__ import annotations
 
 import logging
@@ -27,7 +28,8 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
 async def _async_update_device_metadata(
-    hass: HomeAssistant, entry: PowerShadesConfigEntry,
+    hass: HomeAssistant,
+    entry: PowerShadesConfigEntry,
     coordinator: PowerShadesCoordinator,
 ) -> None:
     """Fill in MAC and model metadata missing from the entry.
@@ -39,7 +41,8 @@ async def _async_update_device_metadata(
     updates: dict = {}
 
     mac = await hass.async_add_executor_job(
-        lambda: get_mac_address(ip=entry.data["ip"]))
+        lambda: get_mac_address(ip=entry.data["ip"])
+    )
     if mac and mac != "00:00:00:00:00:00":
         mac = format_mac(mac)
         coordinator.mac_address = mac
@@ -57,10 +60,8 @@ async def _async_update_device_metadata(
             updates["model"] = parsed["model"]
 
     if updates:
-        _LOGGER.debug("Updating metadata for shade %s: %s",
-                      entry.data["ip"], updates)
-        hass.config_entries.async_update_entry(
-            entry, data={**entry.data, **updates})
+        _LOGGER.debug("Updating metadata for shade %s: %s", entry.data["ip"], updates)
+        hass.config_entries.async_update_entry(entry, data={**entry.data, **updates})
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -70,9 +71,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     return True
 
 
-async def async_setup_entry(
-    hass: HomeAssistant, entry: PowerShadesConfigEntry
-) -> bool:
+async def async_setup_entry(hass: HomeAssistant, entry: PowerShadesConfigEntry) -> bool:
     """Set up PowerShades from a config entry."""
     connection = PowerShadesConnection(entry.data["ip"])
     await connection.async_connect()

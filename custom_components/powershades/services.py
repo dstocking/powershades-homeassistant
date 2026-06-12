@@ -1,4 +1,5 @@
 """PowerShades services."""
+
 from __future__ import annotations
 
 import logging
@@ -20,19 +21,17 @@ _LOGGER = logging.getLogger(__name__)
 SERVICE_SCHEMA = vol.Schema({vol.Required(ATTR_ENTITY_ID): cv.entity_id})
 
 
-def _get_coordinator(
-    hass: HomeAssistant, call: ServiceCall
-) -> PowerShadesCoordinator:
+def _get_coordinator(hass: HomeAssistant, call: ServiceCall) -> PowerShadesCoordinator:
     """Resolve the coordinator for the entity targeted by a service call."""
     entity_id = call.data[ATTR_ENTITY_ID]
     entity = er.async_get(hass).async_get(entity_id)
     if entity is None or entity.platform != DOMAIN:
-        raise ServiceValidationError(
-            f"{entity_id} is not a PowerShades entity")
+        raise ServiceValidationError(f"{entity_id} is not a PowerShades entity")
     entry = hass.config_entries.async_get_entry(entity.config_entry_id)
     if entry is None or entry.state is not ConfigEntryState.LOADED:
         raise HomeAssistantError(
-            f"The PowerShades config entry for {entity_id} is not loaded")
+            f"The PowerShades config entry for {entity_id} is not loaded"
+        )
     return entry.runtime_data
 
 
@@ -67,8 +66,7 @@ def async_setup_services(hass: HomeAssistant) -> None:
     async def set_shade_name(call: ServiceCall) -> None:
         name = call.data["name"].strip()
         if not name or len(name) > 50 or not name.isascii():
-            raise ServiceValidationError(
-                "Shade name must be 1-50 ASCII characters")
+            raise ServiceValidationError("Shade name must be 1-50 ASCII characters")
         await _get_coordinator(hass, call).async_set_shade_name(name)
 
     for name, handler in (
@@ -81,9 +79,11 @@ def async_setup_services(hass: HomeAssistant) -> None:
         ("jog_up", jog_up),
         ("jog_down", jog_down),
     ):
-        hass.services.async_register(
-            DOMAIN, name, handler, schema=SERVICE_SCHEMA)
+        hass.services.async_register(DOMAIN, name, handler, schema=SERVICE_SCHEMA)
 
     hass.services.async_register(
-        DOMAIN, "set_shade_name", set_shade_name,
-        schema=SERVICE_SCHEMA.extend({vol.Required("name"): cv.string}))
+        DOMAIN,
+        "set_shade_name",
+        set_shade_name,
+        schema=SERVICE_SCHEMA.extend({vol.Required("name"): cv.string}),
+    )

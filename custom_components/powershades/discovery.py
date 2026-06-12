@@ -1,4 +1,5 @@
 """Background discovery of PowerShades devices."""
+
 from __future__ import annotations
 
 import logging
@@ -35,8 +36,7 @@ def async_start_discovery(hass: HomeAssistant) -> None:
         # shade's "last UDP master", diverting async move feedback.
         # Poll once from each coordinator to re-assert its socket.
         for entry in hass.config_entries.async_loaded_entries(DOMAIN):
-            hass.async_create_task(
-                entry.runtime_data.async_request_refresh())
+            hass.async_create_task(entry.runtime_data.async_request_refresh())
 
     # Scan once after startup, then periodically. Battery shades sleep,
     # so a single scan can miss them — the interval catches stragglers.
