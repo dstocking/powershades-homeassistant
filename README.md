@@ -95,6 +95,8 @@ Besides the standard cover services, the integration provides `powershades.toggl
 
 PowerShades devices send replies and asynchronous move feedback only to the **last controller that sent them a command** ("UDP master"). Avoid running PowerShades Config.NET or another driver at the same time as Home Assistant — control still works, but live position feedback may intermittently lag until the next poll.
 
+When a shade is moved by another controller (not Home Assistant), the integration cannot know that controller's target position. It infers "Opening"/"Closing" from the direction the reported position is moving, assuming it's heading toward fully open (100%) or fully closed (0%). If the other controller stops the shade partway, Home Assistant keeps showing "Opening"/"Closing" for up to ~15 seconds until it detects the position has stopped changing and falls back to "Open"/"Closed".
+
 
 ### Data Updates
 
