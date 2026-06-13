@@ -102,6 +102,12 @@ When a shade is moved by another controller (not Home Assistant), the integratio
 
 The shade pushes its status to Home Assistant in real time whenever Home Assistant is the one controlling it ("UDP master"). On top of that, Home Assistant polls the shade every 10 seconds (every 5 seconds while the position is unknown) so that changes made by another controller — such as the PowerShades app or a Control4 system — are also picked up.
 
+Home Assistant's `iot_class` manifest field only allows a single value, and this integration declares `local_push`. In practice though, its behavior has something in common with all three of Home Assistant's relevant classifiers:
+
+- **Local Push**: while Home Assistant is the "UDP master", the shade pushes its status roughly every 10 seconds on its own, and also sends an extra push the instant it reaches the position it was told to move to — so Home Assistant finds out a move finished without waiting for its next poll.
+- **Local Polling**: the 10-second poll is what catches position changes made by another controller — without it, those changes would go unnoticed until the next Home Assistant-issued command.
+- **Assumed State**: the shade only ever reports a raw position (0-100%). Home Assistant always infers whether that means "Opening", "Closing", "Open" or "Closed" from how the position changes over time — even for moves Home Assistant itself started. So the state shown is always an educated guess, just a much better-informed one than the assumed states reported by typical RF/IR blind integrations.
+
 All communication is local and the data does not leave your house, which is kind of weird considering that in the offical Powershades app, all data goes through their cloud. The device will work without an internet connection in the short term. It is unknown how the device will behave without an internet connection long term.
 
 ### Automation Examples
