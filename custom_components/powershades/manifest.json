@@ -19,10 +19,11 @@
     ],
     "documentation": "https://github.com/dstocking/powershades-homeassistant",
     "integration_type": "device",
-    "iot_class": "local_polling",
+    "iot_class": "local_push",
     "issue_tracker": "https://github.com/dstocking/powershades-homeassistant/issues",
+    "quality_scale": "silver",
     "requirements": [
         "getmac==0.9.5"
     ],
-    "version": "0.4.1"
+    "version": "0.5.0b0"
 }

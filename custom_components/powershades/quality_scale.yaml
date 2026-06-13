@@ -1,0 +1,153 @@
+rules:
+  # Bronze
+  action-setup: done
+  comment: |
+    services are registered in async_setup via async_setup_services, not tied to a config entry.
+  appropriate-polling: done
+  comment: |
+    coordinator polls every 10 seconds (5 seconds while position is unknown), and also updates
+    immediately on UDP push replies.
+  brands: done
+  comment: |
+    icon/logo assets are in custom_components/powershades/brand/, ready to submit to
+    home-assistant/brands under custom_integrations/powershades/
+  common-modules: done
+  comment: |
+    coordinator.py, protocol.py, udp.py and discovery.py split out the shared logic cleanly;
+    entity.py provides a PowerShadesEntity base class shared by the cover, button and
+    sensor platforms
+  config-flow-test-coverage: done
+  comment: |
+    tests/components/powershades/test_config_flow.py covers manual entry (success, cannot_connect,
+    invalid_ip, duplicate), active discovery, and DHCP discovery
+  config-flow: done
+  comment: |
+    manual entry, active discovery, dhcp discovery and reconfiguration via rediscovery all implemented
+  dependency-transparency: done
+  comment: |
+    getmac dependency declared in manifest requirements, network dependency declared
+  docs-actions: done
+  comment: |
+    services.yaml documents all actions with descriptions and fields
+  docs-high-level-description: done
+  docs-installation-instructions: done
+  docs-removal-instructions: done
+  entity-event-setup: done
+  comment: |
+    CoordinatorEntity handles listener add/remove automatically
+  entity-unique-id: done
+  comment: |
+    unique_id is based on the shade's serial number (falls back to entry_id)
+  has-entity-name: done
+  comment: |
+    _attr_has_entity_name = True is set on cover, button and sensor entities
+  runtime-data: done
+  comment: |
+    coordinator is stored on entry.runtime_data via PowerShadesConfigEntry
+  test-before-configure: done
+  comment: |
+    config flow probes the device with async_get_device_info before creating the entry
+  test-before-setup: done
+  comment: |
+    async_config_entry_first_refresh raises ConfigEntryNotReady if the device doesn't respond
+  unique-config-entry: done
+  comment: |
+    _async_abort_entries_match plus unique_id (serial number) prevents duplicate entries
+
+  # Silver
+  action-exceptions: done
+  comment: |
+    services raise HomeAssistantError/ServiceValidationError on failure
+  config-entry-unloading: done
+  comment: |
+    async_unload_entry unloads platforms and closes the UDP connection via entry.async_on_unload
+  docs-configuration-parameters: done
+  docs-installation-parameters: done
+  entity-unavailable: done
+  comment: |
+    CoordinatorEntity marks entities unavailable automatically when polling raises UpdateFailed
+  integration-owner: done
+  log-when-unavailable: done
+  comment: |
+    DataUpdateCoordinator logs a warning when polling starts failing and when it recovers
+  parallel-updates: done
+  comment: |
+    PARALLEL_UPDATES = 0 is set in cover.py, button.py and sensor.py
+  reauthentication-flow: exempt
+  comment: |
+    the device has no concept of authentication, nothing to re-authenticate
+  test-coverage: done
+  comment: |
+    tests cover the config flow, coordinator (polling, push updates, stuck-shade detection,
+    services), protocol parsing/building, and the cover, button and sensor platforms
+
+  # Gold
+  devices: done
+  comment: |
+    DeviceInfo includes identifiers, MAC connection, manufacturer, model and serial number
+  diagnostics: todo
+  comment: |
+    no diagnostics.py platform implemented
+  discovery-update-info: done
+  comment: |
+    rediscovery updates the stored IP (and MAC) via _abort_if_unique_id_configured(updates=...)
+  discovery: done
+  comment: |
+    dhcp matchers plus periodic UDP broadcast discovery (discovery.py) both create discovery flows
+  docs-data-update: done
+  comment: |
+    "Data Updates" section explains the push + 10s/5s polling behavior
+  docs-examples: done
+  comment: |
+    "Automation Examples" section has open/close automations
+  docs-known-limitations: done
+  comment: |
+    "Known Limitations" section covers the UDP master / last controller behavior
+  docs-supported-devices: done
+  docs-supported-functions: done
+  docs-troubleshooting: done
+  docs-use-cases: done
+  comment: |
+    Added some automation examples
+  dynamic-devices: exempt
+  comment: |
+    one device per config entry
+  entity-category: done
+  comment: |
+    diagnostic sensors and config buttons use entity_category appropriately
+  entity-device-class: done
+  comment: |
+    battery sensor uses SensorDeviceClass.BATTERY, voltage sensor uses SensorDeviceClass.VOLTAGE,
+    cover uses CoverDeviceClass.SHADE
+  entity-disabled-by-default: done
+  comment: |
+    battery and voltage sensors are entity_registry_enabled_default=False
+  entity-translations: todo
+  comment: |
+    entity names are hardcoded strings (e.g. name="Toggle Shade") rather than translation keys
+  exception-translations: todo
+  comment: |
+    exception messages are plain f-strings, not translation keys
+  icon-translations: exempt
+  comment: |
+    icons are static (mdi:* set in code), there's nothing state-dependent to translate
+  reconfiguration-flow: todo
+  comment: |
+    no async_step_reconfigure; an IP change is only picked up if rediscovered automatically
+  repair-issues: todo
+  comment: |
+    not implemented
+  stale-devices: exempt
+  comment: |
+    single device per config entry, nothing to go stale independently
+
+  # Platinum
+  async-dependency: done
+  comment: |
+    udp.py is fully asyncio based (asyncio.DatagramProtocol), no blocking calls or threads
+  inject-websession: exempt
+  comment: |
+    uses UDP, not http(s), so there's no aiohttp session to inject
+  strict-typing: todo
+  comment: |
+    code is well typed throughout, but no py.typed marker or mypy strict config yet

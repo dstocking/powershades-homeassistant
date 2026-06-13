@@ -1,4 +1,5 @@
 """PowerShades button platform."""
+
 from __future__ import annotations
 
 import logging
@@ -13,10 +14,9 @@ from homeassistant.components.button import (
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
 from .coordinator import PowerShadesConfigEntry, PowerShadesCoordinator
+from .entity import PowerShadesEntity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -104,17 +104,13 @@ async def async_setup_entry(
     """Set up PowerShades buttons from a config entry."""
     coordinator = entry.runtime_data
     async_add_entities(
-        PowerShadesButton(coordinator, description)
-        for description in BUTTONS
+        PowerShadesButton(coordinator, description) for description in BUTTONS
     )
 
 
-class PowerShadesButton(
-    CoordinatorEntity[PowerShadesCoordinator], ButtonEntity
-):
+class PowerShadesButton(PowerShadesEntity, ButtonEntity):
     """PowerShades button entity."""
 
-    _attr_has_entity_name = True
     entity_description: PowerShadesButtonDescription
 
     def __init__(
@@ -123,17 +119,8 @@ class PowerShadesButton(
         description: PowerShadesButtonDescription,
     ) -> None:
         """Initialize the PowerShades button."""
-        super().__init__(coordinator)
+        super().__init__(coordinator, description.key)
         self.entity_description = description
-        if coordinator.serial_number:
-            self._attr_unique_id = (
-                f"{DOMAIN}_{coordinator.serial_number}_{description.key}"
-            )
-        else:
-            self._attr_unique_id = (
-                f"{DOMAIN}_{coordinator.entry_id}_{description.key}"
-            )
-        self._attr_device_info = coordinator.device_info
 
     async def async_press(self) -> None:
         """Handle the button press."""

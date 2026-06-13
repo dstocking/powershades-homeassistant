@@ -1,4 +1,5 @@
 """Asyncio UDP transport and discovery for PowerShades devices."""
+
 from __future__ import annotations
 
 import asyncio
@@ -52,12 +53,16 @@ class _PowerShadesProtocol(asyncio.DatagramProtocol):
 
     def datagram_received(self, data: bytes, addr) -> None:
         if not verify_packet(data):
-            _LOGGER.debug("Dropping invalid packet from %s: %s",
-                          addr[0], data.hex())
+            _LOGGER.debug("Dropping invalid packet from %s: %s", addr[0], data.hex())
             return
         header = parse_header(data)
-        _LOGGER.debug("Received op=0x%02X seq=%d from %s: %s",
-                      header.op, header.sequence, addr[0], data.hex())
+        _LOGGER.debug(
+            "Received op=0x%02X seq=%d from %s: %s",
+            header.op,
+            header.sequence,
+            addr[0],
+            data.hex(),
+        )
         fut = self.pending.pop(header.op, None)
         if fut is not None and not fut.done():
             fut.set_result(data)
@@ -88,9 +93,7 @@ class PowerShadesConnection:
         """Return the device IP address."""
         return self._host
 
-    def set_status_callback(
-        self, callback: Callable[[StatusReply], None]
-    ) -> None:
+    def set_status_callback(self, callback: Callable[[StatusReply], None]) -> None:
         """Set the callback invoked for every received status packet."""
         self._status_callback = callback
 
@@ -110,8 +113,14 @@ class PowerShadesConnection:
         """Send one packet."""
         packet = build_packet(op, sequence, payload=payload)
         self._transport.sendto(packet, (self._host, UDP_PORT))
-        _LOGGER.debug("Sent op=0x%02X seq=%d to %s:%d: %s",
-                      op, sequence, self._host, UDP_PORT, packet.hex())
+        _LOGGER.debug(
+            "Sent op=0x%02X seq=%d to %s:%d: %s",
+            op,
+            sequence,
+            self._host,
+            UDP_PORT,
+            packet.hex(),
+        )
 
     def _next_sequence(self) -> int:
         self._sequence = (self._sequence + 1) % 256
@@ -133,9 +142,7 @@ class PowerShadesConnection:
             # only — the device does not echo the sequence on all ops.
             for _attempt in range(retries + 1):
                 sequence = self._next_sequence()
-                fut: asyncio.Future[bytes] = (
-                    asyncio.get_running_loop().create_future()
-                )
+                fut: asyncio.Future[bytes] = asyncio.get_running_loop().create_future()
                 self._protocol.pending[op] = fut
                 self._send(op, sequence, payload)
                 try:
@@ -176,8 +183,7 @@ class _DiscoveryProtocol(asyncio.DatagramProtocol):
                 "serial": parsed["serial"],
                 "model": parsed["model"],
             }
-            _LOGGER.debug("Discovered device %s (serial %s)",
-                          addr[0], parsed["serial"])
+            _LOGGER.debug("Discovered device %s (serial %s)", addr[0], parsed["serial"])
 
     def error_received(self, exc: Exception) -> None:
         _LOGGER.debug("Discovery UDP error: %s", exc)
@@ -204,8 +210,9 @@ async def async_discover_devices(
                     allow_broadcast=True,
                 )
             except OSError as err:
-                _LOGGER.debug("Could not bind discovery socket to %s: %s",
-                              ip_info["address"], err)
+                _LOGGER.debug(
+                    "Could not bind discovery socket to %s: %s", ip_info["address"], err
+                )
                 continue
             transport.sendto(packet, (BROADCAST_IP, UDP_PORT))
             transports.append(transport)
@@ -237,9 +244,7 @@ async def async_get_device_info(ip_address: str) -> dict:
         reply = await connection.async_request(OP_GET_SERIAL, retries=1)
         parsed = parse_serial_reply(reply)
         if parsed is None:
-            raise PowerShadesTimeoutError(
-                f"Malformed serial reply from {ip_address}"
-            )
+            raise PowerShadesTimeoutError(f"Malformed serial reply from {ip_address}")
 
         name = None
         for op, payload, parser in (
@@ -247,8 +252,7 @@ async def async_get_device_info(ip_address: str) -> dict:
             (OP_GET_DEVICE_NAME, b"", parse_device_name_reply),
         ):
             try:
-                name_reply = await connection.async_request(
-                    op, payload, retries=0)
+                name_reply = await connection.async_request(op, payload, retries=0)
             except PowerShadesTimeoutError:
                 continue
             name = parser(name_reply)
