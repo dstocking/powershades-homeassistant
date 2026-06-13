@@ -129,14 +129,30 @@ class PowerShadesCoordinator(DataUpdateCoordinator[PowerShadesData]):
 
     def _data_from_status(self, status: StatusReply) -> PowerShadesData:
         now = time.monotonic()
-        if self._target_position is not None and status.position is not None:
-            if abs(status.position - self._target_position) <= POSITION_TOLERANCE:
+        position = status.position
+        if position is not None:
+            if (
+                self._target_position is not None
+                and abs(position - self._target_position) <= POSITION_TOLERANCE
+            ):
+                # Reached the target, whether it was set by Home Assistant
+                # or inferred below from an externally-initiated move.
                 self._target_position = None
                 self._last_change_time = None
-            elif status.position != self._last_position:
+            elif self._last_position is not None and position != self._last_position:
+                moving_up = position > self._last_position
+                if self._target_position is None or (
+                    (self._target_position > self._last_position) != moving_up
+                ):
+                    # No active target, or the shade just reversed
+                    # direction (an external controller doesn't tell us
+                    # its real target) - assume it's heading toward the
+                    # natural limit in the observed direction.
+                    self._target_position = 100 if moving_up else 0
                 self._last_change_time = now
             elif (
-                self._last_change_time is not None
+                self._target_position is not None
+                and self._last_change_time is not None
                 and now - self._last_change_time >= STUCK_TIMEOUT
             ):
                 # Position hasn't moved for a while even though we think
@@ -145,9 +161,9 @@ class PowerShadesCoordinator(DataUpdateCoordinator[PowerShadesData]):
                 # reporting opening/closing.
                 self._target_position = None
                 self._last_change_time = None
-        self._last_position = status.position
+        self._last_position = position
         return PowerShadesData(
-            position=status.position,
+            position=position,
             battery_mv=status.battery_mv,
             battery_percentage=battery_percentage(status.battery_mv),
             target_position=self._target_position,

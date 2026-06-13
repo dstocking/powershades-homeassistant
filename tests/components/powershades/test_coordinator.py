@@ -108,6 +108,71 @@ def test_continuous_movement_not_marked_stuck(coordinator) -> None:
         assert data.target_position == 0
 
 
+def test_external_move_infers_opening_direction(coordinator) -> None:
+    """A position increase with no active target is inferred as opening."""
+    times = [100.0, 110.0]
+    with patch.object(coordinator_module.time, "monotonic", side_effect=times):
+        coordinator._data_from_status(StatusReply(position=50, battery_mv=3700))
+        data = coordinator._data_from_status(StatusReply(position=60, battery_mv=3700))
+        assert data.target_position == 100
+
+
+def test_external_move_infers_closing_direction(coordinator) -> None:
+    """A position decrease with no active target is inferred as closing."""
+    times = [100.0, 110.0]
+    with patch.object(coordinator_module.time, "monotonic", side_effect=times):
+        coordinator._data_from_status(StatusReply(position=50, battery_mv=3700))
+        data = coordinator._data_from_status(StatusReply(position=40, battery_mv=3700))
+        assert data.target_position == 0
+
+
+def test_external_move_clears_when_limit_reached(coordinator) -> None:
+    """An inferred external move clears once it reaches the natural limit."""
+    times = [100.0, 110.0, 115.0]
+    with patch.object(coordinator_module.time, "monotonic", side_effect=times):
+        coordinator._data_from_status(StatusReply(position=90, battery_mv=3700))
+        data = coordinator._data_from_status(StatusReply(position=99, battery_mv=3700))
+        assert data.target_position == 100
+
+        data = coordinator._data_from_status(StatusReply(position=100, battery_mv=3700))
+        assert data.target_position is None
+
+
+def test_external_move_clears_after_stuck_timeout(coordinator) -> None:
+    """An inferred external move that stalls is cleared after STUCK_TIMEOUT."""
+    times = [100.0, 110.0, 126.0]
+    with patch.object(coordinator_module.time, "monotonic", side_effect=times):
+        coordinator._data_from_status(StatusReply(position=50, battery_mv=3700))
+        data = coordinator._data_from_status(StatusReply(position=60, battery_mv=3700))
+        assert data.target_position == 100
+
+        data = coordinator._data_from_status(StatusReply(position=60, battery_mv=3700))
+        assert data.target_position is None
+
+
+def test_external_move_reversal_reinfers_direction(coordinator) -> None:
+    """An external move that reverses direction re-infers the new target."""
+    times = [100.0, 110.0, 115.0]
+    with patch.object(coordinator_module.time, "monotonic", side_effect=times):
+        coordinator._data_from_status(StatusReply(position=50, battery_mv=3700))
+        data = coordinator._data_from_status(StatusReply(position=60, battery_mv=3700))
+        assert data.target_position == 100
+
+        data = coordinator._data_from_status(StatusReply(position=55, battery_mv=3700))
+        assert data.target_position == 0
+
+
+def test_ha_move_overridden_by_opposite_external_move(coordinator) -> None:
+    """If the shade moves opposite to a HA-issued target, infer the new direction."""
+    times = [100.0, 110.0, 115.0]
+    with patch.object(coordinator_module.time, "monotonic", side_effect=times):
+        coordinator._data_from_status(StatusReply(position=50, battery_mv=3700))
+        coordinator._set_target(100)
+
+        data = coordinator._data_from_status(StatusReply(position=40, battery_mv=3700))
+        assert data.target_position == 0
+
+
 async def test_async_set_position_sends_command(coordinator) -> None:
     """Setting a position sends a Set Position command and sets the target."""
     await coordinator.async_set_position(75)
